@@ -114,7 +114,7 @@ func (s *orderServiceTestSuite) TestCreateOrderId() {
 	// trailingDelta := "1000"
 
 	s.assertReq(func(r *request) {
-		s.Assertions.True(strings.HasPrefix(r.form.Get("newClientOrderId"), "x-B3AUXNYV"))
+		s.Assertions.True(strings.HasPrefix(r.form.Get("newClientOrderId"), "x-TKT5PX2F"))
 	})
 
 	_, err := s.client.NewCreateOrderService().Symbol(symbol).Side(side).

@@ -160,7 +160,7 @@ func (s *orderServiceTestSuite) TestCreateOrderId() {
 	newOrderResponseType := NewOrderRespTypeRESULT
 	closePosition := false
 	s.assertReq(func(r *request) {
-		s.Assertions.True(strings.HasPrefix(r.form.Get("newClientOrderId"), "x-ftGmvgAN"))
+		s.Assertions.True(strings.HasPrefix(r.form.Get("newClientOrderId"), "x-cvBPrNm9"))
 	})
 	_, err := s.client.NewCreateOrderService().Symbol(symbol).Side(side).
 		Type(orderType).TimeInForce(timeInForce).Quantity(quantity).ClosePosition(closePosition).

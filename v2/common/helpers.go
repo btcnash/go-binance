@@ -55,8 +55,8 @@ func ToInt64(digit any) (i int64, err error) {
 }
 
 const (
-	SPOT_ORDER_PREFIX     = "x-B3AUXNYV"
-	CONTRACT_ORDER_PREFIX = "x-ftGmvgAN"
+	SPOT_ORDER_PREFIX     = "x-TKT5PX2F"
+	CONTRACT_ORDER_PREFIX = "x-cvBPrNm9"
 )
 
 func BaseUID() string {

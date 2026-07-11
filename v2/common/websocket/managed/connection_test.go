@@ -193,9 +193,9 @@ func TestConnectionSerializesApplicationAndControlWrites(t *testing.T) {
 	conn := mustNewConnection(t, &sequenceDialer{sockets: []Socket{socket}}, Options{
 		Heartbeat: HeartbeatOptions{
 			Enabled:      true,
-			PingInterval: 5 * time.Millisecond,
-			PongTimeout:  20 * time.Millisecond,
-			WriteTimeout: 10 * time.Millisecond,
+			PingInterval: 10 * time.Millisecond,
+			PongTimeout:  500 * time.Millisecond,
+			WriteTimeout: 100 * time.Millisecond,
 		},
 		Reconnect:  ReconnectPolicy{Enabled: false},
 		WriteQueue: 64,

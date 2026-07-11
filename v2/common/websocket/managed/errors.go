@@ -6,10 +6,11 @@ import (
 )
 
 var (
-	ErrInvalidOptions = errors.New("managed websocket: invalid options")
-	ErrAlreadyStarted = errors.New("managed websocket: already started")
-	ErrClosed         = errors.New("managed websocket: closed")
-	ErrNotReady       = errors.New("managed websocket: not ready")
+	ErrInvalidOptions    = errors.New("managed websocket: invalid options")
+	ErrAlreadyStarted    = errors.New("managed websocket: already started")
+	ErrClosed            = errors.New("managed websocket: closed")
+	ErrNotReady          = errors.New("managed websocket: not ready")
+	ErrGenerationChanged = errors.New("managed websocket: generation changed")
 )
 
 // ErrorKind is a machine-readable failure category.

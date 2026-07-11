@@ -291,9 +291,39 @@ func (c *Connection) SendText(ctx context.Context, payload []byte) error {
 	c.stateMu.RLock()
 	session := c.current
 	state := c.state
+	generation := c.generation
 	c.stateMu.RUnlock()
 	if session == nil || state != StateReady {
 		return ErrNotReady
+	}
+	return c.sendTextOnSession(ctx, session, generation, payload)
+}
+
+// SendTextOnGeneration writes a text frame only when generation is still the
+// current physical connection generation. Higher-level request protocols use
+// this to prevent a request registered for one connection from being written
+// to a newly reconnected socket.
+func (c *Connection) SendTextOnGeneration(ctx context.Context, generation uint64, payload []byte) error {
+	if ctx == nil {
+		return fmt.Errorf("%w: context is nil", ErrInvalidOptions)
+	}
+	c.stateMu.RLock()
+	session := c.current
+	state := c.state
+	currentGeneration := c.generation
+	c.stateMu.RUnlock()
+	if session == nil || state != StateReady {
+		return ErrNotReady
+	}
+	if generation == 0 || generation != currentGeneration || session.generation != generation {
+		return ErrGenerationChanged
+	}
+	return c.sendTextOnSession(ctx, session, generation, payload)
+}
+
+func (c *Connection) sendTextOnSession(ctx context.Context, session *physicalSession, generation uint64, payload []byte) error {
+	if !c.isCurrentGeneration(generation) || session.generation != generation {
+		return ErrGenerationChanged
 	}
 	return session.writeText(ctx, payload)
 }

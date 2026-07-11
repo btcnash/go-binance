@@ -23,6 +23,7 @@ const (
 	ErrorPingWrite          ErrorKind = "ping_write"
 	ErrorPongWrite          ErrorKind = "pong_write"
 	ErrorPongTimeout        ErrorKind = "pong_timeout"
+	ErrorInterrupted        ErrorKind = "interrupted"
 	ErrorFrameBufferFull    ErrorKind = "frame_buffer_full"
 	ErrorReconnectExhausted ErrorKind = "reconnect_exhausted"
 )

@@ -77,6 +77,11 @@ Consumers can observe `States()`, `Heartbeats()`, and `Errors()`, or provide an
 `Observer`. Observer callbacks must return promptly; the bounded observation
 queue prevents them from blocking socket I/O.
 
+Upper protocol layers may call `Interrupt(cause)` to retire only the current
+physical generation and enter the configured reconnect path. This is used by
+M2 when a subscription acknowledgement times out or event continuity is lost;
+it is distinct from permanent `Close`.
+
 ## Write semantics
 
 `SendText` is context-aware. A queued write whose caller context expires before

@@ -263,6 +263,26 @@ func (c *Connection) TerminalError() error {
 	return c.terminalErr
 }
 
+// Interrupt fails the current physical connection and lets the configured
+// reconnect policy rebuild it. Higher-level protocol sessions use this when
+// the transport remains open but its application protocol can no longer be
+// trusted, for example after an acknowledgement timeout or event overflow.
+func (c *Connection) Interrupt(cause error) error {
+	if cause == nil {
+		return fmt.Errorf("%w: interrupt cause is required", ErrInvalidOptions)
+	}
+	c.stateMu.RLock()
+	session := c.current
+	state := c.state
+	generation := c.generation
+	c.stateMu.RUnlock()
+	if session == nil || state != StateReady {
+		return ErrNotReady
+	}
+	session.fail(connectionError(ErrorInterrupted, generation, "interrupt", cause))
+	return nil
+}
+
 // SendText writes one application text frame through the single writer loop.
 func (c *Connection) SendText(ctx context.Context, payload []byte) error {
 	if ctx == nil {
@@ -518,6 +538,8 @@ func reasonForError(err error) StateReason {
 		return ReasonPingWriteFailed
 	case ErrorPongTimeout:
 		return ReasonPongTimeout
+	case ErrorInterrupted:
+		return ReasonInterrupted
 	case ErrorFrameBufferFull:
 		return ReasonFrameBufferFull
 	default:

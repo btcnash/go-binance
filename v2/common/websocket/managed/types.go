@@ -74,6 +74,7 @@ const (
 	ReasonWriteFailed        StateReason = "write_failed"
 	ReasonPingWriteFailed    StateReason = "ping_write_failed"
 	ReasonPongTimeout        StateReason = "pong_timeout"
+	ReasonInterrupted        StateReason = "interrupted"
 	ReasonFrameBufferFull    StateReason = "frame_buffer_full"
 	ReasonReconnectScheduled StateReason = "reconnect_scheduled"
 	ReasonReconnectExhausted StateReason = "reconnect_exhausted"

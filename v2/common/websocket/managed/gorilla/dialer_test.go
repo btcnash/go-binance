@@ -2,6 +2,7 @@ package gorilla
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -157,5 +158,22 @@ func TestManagedConnectionPongTimeoutReconnectsOverRealWebSocket(t *testing.T) {
 		case <-timer.C:
 			t.Fatal("timeout waiting for reconnect after real websocket pong timeout")
 		}
+	}
+}
+
+func TestDialerPreservesHandshakeStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "invalid listen key", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	endpoint := "ws" + strings.TrimPrefix(server.URL, "http")
+	_, err := (Dialer{Endpoint: endpoint}).Dial(context.Background())
+	var handshakeErr *HandshakeError
+	if !errors.As(err, &handshakeErr) {
+		t.Fatalf("Dial() error = %T %v, want *HandshakeError", err, err)
+	}
+	if handshakeErr.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", handshakeErr.StatusCode, http.StatusUnauthorized)
 	}
 }

@@ -57,10 +57,15 @@ func (d Dialer) Dial(ctx context.Context) (managed.Socket, error) {
 	}
 	conn, response, err := wsDialer.DialContext(ctx, d.Endpoint, d.Header.Clone())
 	if err != nil {
-		if response != nil && response.Body != nil {
-			_ = response.Body.Close()
+		handshakeErr := &HandshakeError{Endpoint: d.Endpoint, Err: err}
+		if response != nil {
+			handshakeErr.StatusCode = response.StatusCode
+			handshakeErr.Status = response.Status
+			if response.Body != nil {
+				_ = response.Body.Close()
+			}
 		}
-		return nil, fmt.Errorf("managed websocket gorilla dial %s: %w", d.Endpoint, err)
+		return nil, handshakeErr
 	}
 	if d.ReadLimit > 0 {
 		conn.SetReadLimit(d.ReadLimit)

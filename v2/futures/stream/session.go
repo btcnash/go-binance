@@ -730,10 +730,10 @@ func (s *StreamSession) handleFrame(frame managedws.Frame) {
 		return
 	}
 
-	raw := append(json.RawMessage(nil), frame.Payload...)
+	raw := json.RawMessage(frame.Payload)
 	data := raw
 	if envelope.Stream != "" && len(envelope.Data) > 0 {
-		data = append(json.RawMessage(nil), envelope.Data...)
+		data = envelope.Data
 	}
 	event := StreamEvent{
 		Generation: frame.Generation,
@@ -762,7 +762,7 @@ func (s *StreamSession) deliverResponse(generation, id uint64, envelope wireEnve
 	if !ok || pending.generation != generation {
 		return
 	}
-	response := protocolResponse{result: append(json.RawMessage(nil), envelope.Result...)}
+	response := protocolResponse{result: envelope.Result}
 	if envelope.Code != nil {
 		response.code = *envelope.Code
 		response.msg = envelope.Msg

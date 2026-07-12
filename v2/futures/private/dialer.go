@@ -177,6 +177,101 @@ func (b sourceBinding) accepts(event futures.UserDataEventType) bool {
 	return ok
 }
 
+type bindingSnapshot struct {
+	sourceIDs       []string
+	listenKeySource map[string]string
+	listenKeys      []string
+	eventCandidates map[futures.UserDataEventType][]string
+	wildcardSources []string
+	isolatedSource  string
+}
+
+func newBindingSnapshot(bindings []sourceBinding) *bindingSnapshot {
+	snapshot := &bindingSnapshot{
+		sourceIDs:       make([]string, 0, len(bindings)),
+		listenKeySource: make(map[string]string, len(bindings)),
+		listenKeys:      make([]string, 0, len(bindings)),
+		eventCandidates: make(map[futures.UserDataEventType][]string),
+	}
+	for _, binding := range bindings {
+		snapshot.sourceIDs = append(snapshot.sourceIDs, binding.SourceID)
+		if binding.ListenKey != "" {
+			// Preserve the legacy resolver contract: when duplicate listen keys
+			// are supplied, the first binding wins.
+			if _, exists := snapshot.listenKeySource[binding.ListenKey]; !exists {
+				snapshot.listenKeySource[binding.ListenKey] = binding.SourceID
+				snapshot.listenKeys = append(snapshot.listenKeys, binding.ListenKey)
+			}
+		}
+		eventSet := binding.eventSet
+		if len(eventSet) == 0 && len(binding.Events) > 0 {
+			eventSet = make(map[futures.UserDataEventType]struct{}, len(binding.Events))
+			for _, event := range binding.Events {
+				eventSet[event] = struct{}{}
+			}
+		}
+		if len(eventSet) == 0 {
+			snapshot.wildcardSources = append(snapshot.wildcardSources, binding.SourceID)
+			continue
+		}
+		for event := range eventSet {
+			snapshot.eventCandidates[event] = append(snapshot.eventCandidates[event], binding.SourceID)
+		}
+	}
+	sort.Strings(snapshot.sourceIDs)
+	sort.Strings(snapshot.wildcardSources)
+	for event, candidates := range snapshot.eventCandidates {
+		candidates = append(candidates, snapshot.wildcardSources...)
+		sort.Strings(candidates)
+		snapshot.eventCandidates[event] = candidates
+	}
+	if len(snapshot.sourceIDs) == 1 {
+		snapshot.isolatedSource = snapshot.sourceIDs[0]
+	}
+	return snapshot
+}
+
+func (s *bindingSnapshot) resolve(event futures.UserDataEventType, explicitKey, stream string) (string, []string, SourceResolution) {
+	if s == nil {
+		return "", nil, SourceResolutionUnmatched
+	}
+	explicitKey = strings.TrimSpace(explicitKey)
+	if sourceID := s.listenKeySource[explicitKey]; explicitKey != "" && sourceID != "" {
+		return sourceID, nil, SourceResolutionExplicit
+	}
+	if stream != "" {
+		if sourceID := s.listenKeySource[stream]; sourceID != "" {
+			return sourceID, nil, SourceResolutionExplicit
+		}
+		for _, key := range s.listenKeys {
+			if strings.Contains(stream, "listenKey="+url.QueryEscape(key)) {
+				return s.listenKeySource[key], nil, SourceResolutionExplicit
+			}
+		}
+	}
+	if s.isolatedSource != "" {
+		return s.isolatedSource, nil, SourceResolutionIsolated
+	}
+	candidates := s.eventCandidates[event]
+	if len(candidates) == 0 {
+		candidates = s.wildcardSources
+	}
+	if len(candidates) == 1 {
+		return candidates[0], nil, SourceResolutionEventFilter
+	}
+	if len(candidates) == 0 {
+		return "", append([]string(nil), s.sourceIDs...), SourceResolutionUnmatched
+	}
+	return "", append([]string(nil), candidates...), SourceResolutionAmbiguous
+}
+
+func (s *bindingSnapshot) allSourceIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return append([]string(nil), s.sourceIDs...)
+}
+
 type dialSnapshot struct {
 	Endpoint string
 	Bindings []sourceBinding

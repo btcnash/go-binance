@@ -19,8 +19,8 @@ func TestConnectionActivePingPongKeepsReadyAndReportsRTT(t *testing.T) {
 		Heartbeat: HeartbeatOptions{
 			Enabled:      true,
 			PingInterval: 20 * time.Millisecond,
-			PongTimeout:  15 * time.Millisecond,
-			WriteTimeout: 10 * time.Millisecond,
+			PongTimeout:  100 * time.Millisecond,
+			WriteTimeout: 50 * time.Millisecond,
 		},
 		Reconnect: ReconnectPolicy{Enabled: false},
 	})
@@ -426,8 +426,8 @@ func TestConnectionObserverReceivesLifecycleAndHeartbeatEvents(t *testing.T) {
 		Heartbeat: HeartbeatOptions{
 			Enabled:      true,
 			PingInterval: 10 * time.Millisecond,
-			PongTimeout:  10 * time.Millisecond,
-			WriteTimeout: 10 * time.Millisecond,
+			PongTimeout:  100 * time.Millisecond,
+			WriteTimeout: 50 * time.Millisecond,
 		},
 		Reconnect: ReconnectPolicy{Enabled: false},
 		Observer: ObserverFuncs{

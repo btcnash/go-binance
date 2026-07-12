@@ -224,7 +224,8 @@ const (
 
 // Event is one user-data event. SourceID is only set when attribution is
 // certain. Shared sessions preserve CandidateSourceIDs when Binance's payload
-// does not identify one account and event filters overlap.
+// does not identify one account and event filters overlap. Raw is immutable
+// session-owned data after delivery.
 type Event struct {
 	Generation         uint64
 	SourceID           string

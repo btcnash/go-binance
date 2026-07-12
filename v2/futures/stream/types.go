@@ -72,6 +72,7 @@ type StreamStateEvent struct {
 
 // StreamEvent is one Binance application event. For combined streams, Stream
 // and Data contain the envelope fields. Raw always preserves the original JSON.
+// Raw and Data are immutable session-owned buffers after delivery.
 type StreamEvent struct {
 	Generation uint64
 	Stream     string

@@ -14,6 +14,7 @@ var (
 	ErrSessionNotReady        = errors.New("websocket api: session not ready")
 	ErrDuplicateRequestID     = errors.New("websocket api: duplicate request id")
 	ErrTooManyPendingRequests = errors.New("websocket api: too many pending requests")
+	ErrRequestIDCapacity      = errors.New("websocket api: request id history capacity reached")
 	ErrRequestTimeout         = errors.New("websocket api: request timeout")
 	ErrDisconnected           = errors.New("websocket api: disconnected")
 	ErrOutcomeUnknown         = errors.New("websocket api: outcome unknown")

@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
@@ -67,6 +67,7 @@ type Session struct {
 	state           State
 	generation      uint64
 	currentBindings []sourceBinding
+	bindingIndex    atomic.Pointer[bindingSnapshot]
 	terminalErr     error
 	everReady       bool
 
@@ -420,9 +421,11 @@ func (s *Session) handleTransportState(event managedws.StateEvent) {
 			_ = s.conn.Interrupt(ErrListenKeyExpired)
 			return
 		}
+		bindings := cloneBindings(snapshot.Bindings)
 		s.mu.Lock()
 		s.generation = event.Generation
-		s.currentBindings = cloneBindings(snapshot.Bindings)
+		s.currentBindings = bindings
+		s.bindingIndex.Store(newBindingSnapshot(bindings))
 		s.everReady = true
 		s.mu.Unlock()
 		s.transition(StateReady, ReasonTransportReady, event.Generation, nil)
@@ -495,24 +498,32 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 		}
 		s.mu.Lock()
 		if frame.Generation > s.generation {
+			bindings := cloneBindings(snapshot.Bindings)
 			s.generation = frame.Generation
-			s.currentBindings = cloneBindings(snapshot.Bindings)
+			s.currentBindings = bindings
+			s.bindingIndex.Store(newBindingSnapshot(bindings))
 			s.everReady = true
 		}
 	}
-	bindings := cloneBindings(s.currentBindings)
+	bindingIndex := s.bindingIndex.Load()
+	if bindingIndex == nil {
+		bindingIndex = newBindingSnapshot(s.currentBindings)
+		s.bindingIndex.Store(bindingIndex)
+	}
 	s.mu.Unlock()
 
-	raw := append(json.RawMessage(nil), frame.Payload...)
+	raw := json.RawMessage(frame.Payload)
 	payload := raw
 	var envelope eventEnvelope
 	if json.Unmarshal(raw, &envelope) == nil && len(envelope.Data) > 0 && string(envelope.Data) != "null" {
-		payload = append(json.RawMessage(nil), envelope.Data...)
+		payload = envelope.Data
 	}
-	eventType, err := exactEventType(payload)
-	if err != nil {
+	decoded := new(futures.WsUserDataEvent)
+	decodeErr := json.Unmarshal(payload, decoded)
+	eventType := decoded.Event
+	if eventType == "" {
 		if code, message, rejected := exactPrivateRejection(payload); rejected && isInvalidListenKeyCode(code) {
-			affected := sortedSourceIDs(bindings)
+			affected := bindingIndex.allSourceIDs()
 			wrapped := privateError(ErrorExpired, "", frame.Generation, "private_rejected", fmt.Errorf("%w: code=%d message=%q", ErrListenKeyExpired, code, message))
 			s.emitError(wrapped)
 			s.emitGap(GapEvent{Reason: GapReasonListenKeyExpired, FromGeneration: frame.Generation, SourceIDs: affected, At: time.Now(), Err: wrapped})
@@ -521,16 +532,14 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 			_ = s.conn.Interrupt(wrapped)
 			return
 		}
-		wrapped := privateError(ErrorProtocol, "", frame.Generation, "decode_header", fmt.Errorf("%w: %v", ErrMalformedEvent, err))
+		wrapped := privateError(ErrorProtocol, "", frame.Generation, "decode_header", fmt.Errorf("%w: %v", ErrMalformedEvent, decodeErr))
 		s.emitError(wrapped)
-		s.emitGap(GapEvent{Reason: GapReasonMalformedEvent, FromGeneration: frame.Generation, SourceIDs: sortedSourceIDs(bindings), At: time.Now(), Err: wrapped})
+		s.emitGap(GapEvent{Reason: GapReasonMalformedEvent, FromGeneration: frame.Generation, SourceIDs: bindingIndex.allSourceIDs(), At: time.Now(), Err: wrapped})
 		_ = s.conn.Interrupt(wrapped)
 		return
 	}
 
-	sourceID, candidates, resolution := resolveSource(bindings, eventType, envelope.ListenKey, envelope.Stream)
-	decoded := new(futures.WsUserDataEvent)
-	decodeErr := json.Unmarshal(payload, decoded)
+	sourceID, candidates, resolution := bindingIndex.resolve(eventType, envelope.ListenKey, envelope.Stream)
 	event := Event{
 		Generation:         frame.Generation,
 		SourceID:           sourceID,
@@ -539,7 +548,7 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 		Type:               eventType,
 		Decoded:            decoded,
 		DecodeError:        decodeErr,
-		Raw:                append(json.RawMessage(nil), payload...),
+		Raw:                payload,
 		ReceivedAt:         frame.ReceivedAt,
 	}
 	if decodeErr != nil {
@@ -553,13 +562,13 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 	if !s.publishEvent(event) {
 		wrapped := privateError(ErrorEventOverflow, sourceID, frame.Generation, "deliver_event", ErrEventBufferFull)
 		s.emitError(wrapped)
-		s.emitGap(GapEvent{Reason: GapReasonEventOverflow, FromGeneration: frame.Generation, SourceIDs: candidateOrAll(sourceID, candidates, bindings), At: time.Now(), Err: wrapped})
+		s.emitGap(GapEvent{Reason: GapReasonEventOverflow, FromGeneration: frame.Generation, SourceIDs: candidateOrAll(sourceID, candidates, bindingIndex), At: time.Now(), Err: wrapped})
 		_ = s.conn.Interrupt(wrapped)
 		return
 	}
 
 	if eventType == futures.UserDataEventTypeListenKeyExpired {
-		affected := candidateOrAll(sourceID, candidates, bindings)
+		affected := candidateOrAll(sourceID, candidates, bindingIndex)
 		wrapped := privateError(ErrorExpired, sourceID, frame.Generation, "listen_key_expired", ErrListenKeyExpired)
 		s.emitGap(GapEvent{Reason: GapReasonListenKeyExpired, FromGeneration: frame.Generation, SourceIDs: affected, At: time.Now(), Err: wrapped})
 		s.invalidateSources(affected, wrapped)
@@ -568,44 +577,15 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 	}
 }
 
-func exactEventType(payload []byte) (futures.UserDataEventType, error) {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(payload, &fields); err != nil {
-		return "", err
-	}
-	raw, ok := fields["e"]
-	if !ok {
-		return "", errors.New("missing event type")
-	}
-	var event string
-	if err := json.Unmarshal(raw, &event); err != nil {
-		return "", err
-	}
-	event = strings.TrimSpace(event)
-	if event == "" {
-		return "", errors.New("empty event type")
-	}
-	return futures.UserDataEventType(event), nil
-}
-
 func exactPrivateRejection(payload []byte) (int, string, bool) {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(payload, &fields); err != nil {
+	var rejection struct {
+		Code *int   `json:"code"`
+		Msg  string `json:"msg"`
+	}
+	if err := json.Unmarshal(payload, &rejection); err != nil || rejection.Code == nil {
 		return 0, "", false
 	}
-	rawCode, ok := fields["code"]
-	if !ok {
-		return 0, "", false
-	}
-	var code int
-	if err := json.Unmarshal(rawCode, &code); err != nil {
-		return 0, "", false
-	}
-	var message string
-	if rawMessage, ok := fields["msg"]; ok {
-		_ = json.Unmarshal(rawMessage, &message)
-	}
-	return code, message, true
+	return *rejection.Code, rejection.Msg, true
 }
 
 func isInvalidListenKeyCode(code int) bool {
@@ -617,49 +597,14 @@ func isInvalidListenKeyCode(code int) bool {
 	}
 }
 
-func resolveSource(bindings []sourceBinding, event futures.UserDataEventType, explicitKey, stream string) (string, []string, SourceResolution) {
-	explicitKey = strings.TrimSpace(explicitKey)
-	if explicitKey != "" {
-		for _, binding := range bindings {
-			if binding.ListenKey == explicitKey {
-				return binding.SourceID, nil, SourceResolutionExplicit
-			}
-		}
-	}
-	if stream != "" {
-		for _, binding := range bindings {
-			if stream == binding.ListenKey || strings.Contains(stream, "listenKey="+url.QueryEscape(binding.ListenKey)) {
-				return binding.SourceID, nil, SourceResolutionExplicit
-			}
-		}
-	}
-	if len(bindings) == 1 {
-		return bindings[0].SourceID, nil, SourceResolutionIsolated
-	}
-	candidates := make([]string, 0, len(bindings))
-	for _, binding := range bindings {
-		if binding.accepts(event) {
-			candidates = append(candidates, binding.SourceID)
-		}
-	}
-	sort.Strings(candidates)
-	if len(candidates) == 1 {
-		return candidates[0], nil, SourceResolutionEventFilter
-	}
-	if len(candidates) == 0 {
-		return "", sortedSourceIDs(bindings), SourceResolutionUnmatched
-	}
-	return "", candidates, SourceResolutionAmbiguous
-}
-
-func candidateOrAll(sourceID string, candidates []string, bindings []sourceBinding) []string {
+func candidateOrAll(sourceID string, candidates []string, bindings *bindingSnapshot) []string {
 	if sourceID != "" {
 		return []string{sourceID}
 	}
 	if len(candidates) > 0 {
 		return append([]string(nil), candidates...)
 	}
-	return sortedSourceIDs(bindings)
+	return bindings.allSourceIDs()
 }
 
 func (s *Session) keepAliveLoop(ctx context.Context, source *sourceRuntime) {
@@ -767,10 +712,10 @@ func (s *Session) invalidateSources(ids []string, err error) {
 }
 
 func (s *Session) currentSourceIDs() []string {
-	s.mu.Lock()
-	bindings := cloneBindings(s.currentBindings)
-	s.mu.Unlock()
-	if len(bindings) == 0 {
+	if bindings := s.bindingIndex.Load(); bindings != nil && len(bindings.sourceIDs) > 0 {
+		return bindings.allSourceIDs()
+	}
+	if len(s.sources) > 0 {
 		ids := make([]string, 0, len(s.sources))
 		for _, source := range s.sources {
 			ids = append(ids, source.spec.ID)
@@ -778,7 +723,7 @@ func (s *Session) currentSourceIDs() []string {
 		sort.Strings(ids)
 		return ids
 	}
-	return sortedSourceIDs(bindings)
+	return nil
 }
 func (s *Session) hasEverBeenReady() bool { s.mu.Lock(); defer s.mu.Unlock(); return s.everReady }
 

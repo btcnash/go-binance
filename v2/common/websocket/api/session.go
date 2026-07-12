@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	defaultRequestTimeout = 5 * time.Second
-	defaultBuffer         = 64
-	defaultMaxPending     = 1024
-	defaultDrainTimeout   = 5 * time.Second
+	defaultRequestTimeout             = 5 * time.Second
+	defaultBuffer                     = 64
+	defaultMaxPending                 = 1024
+	defaultMaxRequestIDsPerGeneration = 1 << 20
+	defaultDrainTimeout               = 5 * time.Second
 )
 
 type pendingResult struct {
@@ -42,6 +43,7 @@ type transportSlot struct {
 	ready               bool
 	readyAt             time.Time
 	draining            bool
+	rotationRequested   bool
 	closed              bool
 	failedErr           error
 }
@@ -75,6 +77,8 @@ type Session struct {
 	pending        map[string]*pendingRequest
 	usedIDs        map[uint64]map[string]struct{}
 	changed        chan struct{}
+	drainChanged   chan struct{}
+	rotationNow    chan *transportSlot
 
 	states       chan StateEvent
 	errors       chan ErrorEvent
@@ -106,6 +110,8 @@ func NewSession(opts Options) (*Session, error) {
 		pending:      make(map[string]*pendingRequest),
 		usedIDs:      make(map[uint64]map[string]struct{}),
 		changed:      make(chan struct{}),
+		drainChanged: make(chan struct{}, 1),
+		rotationNow:  make(chan *transportSlot, 1),
 		states:       make(chan StateEvent, normalized.StateBuffer),
 		errors:       make(chan ErrorEvent, normalized.ErrorBuffer),
 		unsolicited:  make(chan UnsolicitedFrame, normalized.UnsolicitedBuffer),
@@ -115,7 +121,7 @@ func NewSession(opts Options) (*Session, error) {
 }
 
 func normalizeOptions(opts Options) (Options, error) {
-	if opts.RequestTimeout < 0 || opts.MaxPendingRequests < 0 || opts.UnsolicitedBuffer < 0 || opts.StateBuffer < 0 || opts.ErrorBuffer < 0 || opts.ObserverBuffer < 0 {
+	if opts.RequestTimeout < 0 || opts.MaxPendingRequests < 0 || opts.MaxRequestIDsPerGeneration < 0 || opts.UnsolicitedBuffer < 0 || opts.StateBuffer < 0 || opts.ErrorBuffer < 0 || opts.ObserverBuffer < 0 {
 		return Options{}, fmt.Errorf("%w: negative timeout or buffer", ErrInvalidOptions)
 	}
 	if opts.RequestTimeout == 0 {
@@ -123,6 +129,9 @@ func normalizeOptions(opts Options) (Options, error) {
 	}
 	if opts.MaxPendingRequests == 0 {
 		opts.MaxPendingRequests = defaultMaxPending
+	}
+	if opts.MaxRequestIDsPerGeneration == 0 {
+		opts.MaxRequestIDsPerGeneration = defaultMaxRequestIDsPerGeneration
 	}
 	if opts.UnsolicitedBuffer == 0 {
 		opts.UnsolicitedBuffer = defaultBuffer
@@ -494,9 +503,17 @@ func (s *Session) doOnSlot(ctx context.Context, slot *transportSlot, transportGe
 		s.mu.Unlock()
 		return Response{}, ErrSessionNotReady
 	}
+	if len(used) >= s.opts.MaxRequestIDsPerGeneration {
+		s.requestRotationLocked(slot)
+		s.mu.Unlock()
+		return Response{}, ErrRequestIDCapacity
+	}
 	used[request.ID] = struct{}{}
 	s.pending[request.ID] = p
-	s.notifyLocked()
+	rotationThreshold := s.opts.MaxRequestIDsPerGeneration - s.opts.MaxRequestIDsPerGeneration/10
+	if len(used) >= rotationThreshold {
+		s.requestRotationLocked(slot)
+	}
 	s.mu.Unlock()
 
 	if err := slot.conn.SendTextOnGeneration(requestCtx, transportGeneration, request.Payload); err != nil {
@@ -558,7 +575,6 @@ func normalizeRequest(ctx context.Context, request Request) (Request, error) {
 	if err != nil || id != request.ID {
 		return Request{}, fmt.Errorf("%w: payload id does not match request id", ErrInvalidRequest)
 	}
-	request.Payload = append([]byte(nil), request.Payload...)
 	return request, nil
 }
 
@@ -587,7 +603,7 @@ func (s *Session) handleFrame(slot *transportSlot, frame managedws.Frame) {
 		s.emitUnsolicited(slot, frame)
 		return
 	}
-	response := Response{ID: id, Payload: append(json.RawMessage(nil), frame.Payload...), Generation: apiGeneration, ReceivedAt: frame.ReceivedAt}
+	response := Response{ID: id, Payload: json.RawMessage(frame.Payload), Generation: apiGeneration, ReceivedAt: frame.ReceivedAt}
 	s.completePending(p, pendingResult{response: response})
 }
 
@@ -595,7 +611,7 @@ func (s *Session) emitUnsolicited(slot *transportSlot, frame managedws.Frame) {
 	s.mu.Lock()
 	generation := slot.apiGeneration
 	s.mu.Unlock()
-	event := UnsolicitedFrame{Payload: append(json.RawMessage(nil), frame.Payload...), Generation: generation, ReceivedAt: frame.ReceivedAt}
+	event := UnsolicitedFrame{Payload: json.RawMessage(frame.Payload), Generation: generation, ReceivedAt: frame.ReceivedAt}
 	select {
 	case s.unsolicited <- event:
 	default:
@@ -635,8 +651,11 @@ func (s *Session) completePending(p *pendingRequest, result pendingResult) bool 
 		return false
 	}
 	delete(s.pending, p.request.ID)
-	s.notifyLocked()
+	draining := p.slot != nil && p.slot.draining
 	s.mu.Unlock()
+	if draining {
+		s.notifyDrain()
+	}
 	p.result <- result
 	if result.err != nil {
 		s.emitError(errorEventForRequest(p, result.err))
@@ -725,12 +744,8 @@ func (s *Session) rotationLoop(ctx context.Context) {
 		}
 		wait := time.Until(active.readyAt.Add(s.opts.Rotation.MaxAge))
 		s.mu.Unlock()
-		if wait > 0 {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(wait):
-			}
+		if !s.waitRotationTrigger(ctx, active, wait) {
+			return
 		}
 		if err := s.rotate(ctx, active); err != nil && ctx.Err() == nil {
 			s.emitError(ErrorEvent{Kind: ErrorRotation, Generation: active.apiGeneration, At: time.Now(), Err: err})
@@ -755,6 +770,13 @@ func (s *Session) rotationLoop(ctx context.Context) {
 }
 
 func (s *Session) rotate(ctx context.Context, old *transportSlot) error {
+	defer func() {
+		s.mu.Lock()
+		if s.active == old && !old.draining {
+			old.rotationRequested = false
+		}
+		s.mu.Unlock()
+	}()
 	s.transition(StateRotating, ReasonRotationStarted, old.apiGeneration, nil)
 	conn, err := managedws.NewConnection(s.opts.ConnectionOptions)
 	if err != nil {
@@ -804,7 +826,6 @@ DrainLoop:
 				count++
 			}
 		}
-		changed := s.changed
 		s.mu.Unlock()
 		if count == 0 {
 			break
@@ -813,7 +834,7 @@ DrainLoop:
 		case <-drainCtx.Done():
 			drainTimedOut = true
 			break DrainLoop
-		case <-changed:
+		case <-s.drainChanged:
 		}
 	}
 	if drainTimedOut {
@@ -958,6 +979,51 @@ func (s *Session) observerLoop() {
 				s.opts.Observer.OnError(*event.err)
 			}
 		}()
+	}
+}
+
+func (s *Session) waitRotationTrigger(ctx context.Context, active *transportSlot, wait time.Duration) bool {
+	if wait <= 0 {
+		return true
+	}
+	timer := time.NewTimer(wait)
+	defer func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}()
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-timer.C:
+			return true
+		case requested := <-s.rotationNow:
+			if requested == active {
+				return true
+			}
+		}
+	}
+}
+
+func (s *Session) requestRotationLocked(slot *transportSlot) {
+	if !s.opts.Rotation.Enabled || slot == nil || s.active != slot || !slot.ready || slot.draining || slot.rotationRequested {
+		return
+	}
+	select {
+	case s.rotationNow <- slot:
+		slot.rotationRequested = true
+	default:
+	}
+}
+
+func (s *Session) notifyDrain() {
+	select {
+	case s.drainChanged <- struct{}{}:
+	default:
 	}
 }
 

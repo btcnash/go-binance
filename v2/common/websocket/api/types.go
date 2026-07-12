@@ -25,7 +25,7 @@ const (
 )
 
 // Request is one already-encoded WebSocket API request. Payload must contain a
-// top-level id equal to ID.
+// top-level id equal to ID and must not be mutated while Do is executing.
 type Request struct {
 	ID      string
 	Method  string
@@ -34,7 +34,8 @@ type Request struct {
 }
 
 // Response preserves the raw Binance response and the physical generation on
-// which it arrived.
+// which it arrived. Payload is immutable session-owned data; the SDK does not
+// modify it after delivery.
 type Response struct {
 	ID         string
 	Payload    json.RawMessage
@@ -43,6 +44,7 @@ type Response struct {
 }
 
 // UnsolicitedFrame is a text frame that does not match an outstanding request.
+// Payload is immutable session-owned data after delivery.
 type UnsolicitedFrame struct {
 	Payload    json.RawMessage
 	Generation uint64
@@ -169,11 +171,16 @@ type Options struct {
 
 	RequestTimeout     time.Duration
 	MaxPendingRequests int
-	UnsolicitedBuffer  int
-	StateBuffer        int
-	ErrorBuffer        int
-	ObserverBuffer     int
-	Observer           Observer
+	// MaxRequestIDsPerGeneration bounds the no-reuse history retained for one
+	// authenticated transport generation. Zero uses the SDK default. When the
+	// history approaches the limit, an enabled rotation is requested; at the
+	// limit, new requests fail closed with ErrRequestIDCapacity.
+	MaxRequestIDsPerGeneration int
+	UnsolicitedBuffer          int
+	StateBuffer                int
+	ErrorBuffer                int
+	ObserverBuffer             int
+	Observer                   Observer
 }
 
 // RequestSender is the public request surface used by wrappers.

@@ -25,7 +25,8 @@ const (
 // Connection owns one logical WebSocket connection across physical reconnects.
 type Connection struct {
 	// Keep 64-bit atomics first for correct alignment on 32-bit platforms.
-	reconnectCount uint64
+	reconnectCount    uint64
+	currentGeneration atomic.Uint64
 
 	opts Options
 
@@ -444,22 +445,22 @@ func (c *Connection) nextGeneration() uint64 {
 
 func (c *Connection) setCurrent(session *physicalSession) {
 	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
 	c.current = session
+	c.currentGeneration.Store(session.generation)
+	c.stateMu.Unlock()
 }
 
 func (c *Connection) clearCurrent(session *physicalSession) {
 	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
 	if session == nil || c.current == session {
 		c.current = nil
+		c.currentGeneration.Store(0)
 	}
+	c.stateMu.Unlock()
 }
 
 func (c *Connection) isCurrentGeneration(generation uint64) bool {
-	c.stateMu.RLock()
-	defer c.stateMu.RUnlock()
-	return c.current != nil && c.current.generation == generation && c.generation == generation
+	return generation != 0 && c.currentGeneration.Load() == generation
 }
 
 func (c *Connection) transition(next State, reason StateReason, attempt int, err error) {

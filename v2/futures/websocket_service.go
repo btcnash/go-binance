@@ -1319,39 +1319,38 @@ type WsUserDataConditionalOrderTriggerReject struct {
 }
 
 func (e *WsUserDataEvent) UnmarshalJSON(data []byte) error {
-	j, err := newJSON(data)
-	if err != nil {
+	var header struct {
+		Event           UserDataEventType `json:"e"`
+		Time            int64             `json:"E"`
+		TransactionTime int64             `json:"T"`
+	}
+	if err := json.Unmarshal(data, &header); err != nil {
 		return err
 	}
-	e.Event = UserDataEventType(j.Get("e").MustString())
-	e.Time = j.Get("E").MustInt64()
-	if v, ok := j.CheckGet("T"); ok {
-		e.TransactionTime = v.MustInt64()
-	}
+	e.Event = header.Event
+	e.Time = header.Time
+	e.TransactionTime = header.TransactionTime
 
-	// use standard json unmarshal for event types
-	eventMaps := map[UserDataEventType]any{
-		UserDataEventTypeMarginCall:                    &e.WsUserDataMarginCall,
-		UserDataEventTypeAccountUpdate:                 &e.WsUserDataAccountUpdate,
-		UserDataEventTypeOrderTradeUpdate:              &e.WsUserDataOrderTradeUpdate,
-		UserDataEventTypeAccountConfigUpdate:           &e.WsUserDataAccountConfigUpdate,
-		UserDataEventTypeConditionalOrderTriggerReject: &e.WsUserDataConditionalOrderTriggerReject,
-		UserDataEventTypeTradeLite:                     &e.WsUserDataTradeLite,
-		UserDataEventTypeAlgoUpdate:                    &e.WsUserDataAlgoUpdate,
-	}
-
-	// ignore event types, No additional data
-	ignoreEventTypes := map[UserDataEventType]struct{}{
-		UserDataEventTypeListenKeyExpired: {},
-	}
-
-	if v, ok := eventMaps[e.Event]; ok {
-		return json.Unmarshal(data, v)
-	} else if _, ok := ignoreEventTypes[e.Event]; ok {
+	switch e.Event {
+	case UserDataEventTypeMarginCall:
+		return json.Unmarshal(data, &e.WsUserDataMarginCall)
+	case UserDataEventTypeAccountUpdate:
+		return json.Unmarshal(data, &e.WsUserDataAccountUpdate)
+	case UserDataEventTypeOrderTradeUpdate:
+		return json.Unmarshal(data, &e.WsUserDataOrderTradeUpdate)
+	case UserDataEventTypeAccountConfigUpdate:
+		return json.Unmarshal(data, &e.WsUserDataAccountConfigUpdate)
+	case UserDataEventTypeConditionalOrderTriggerReject:
+		return json.Unmarshal(data, &e.WsUserDataConditionalOrderTriggerReject)
+	case UserDataEventTypeTradeLite:
+		return json.Unmarshal(data, &e.WsUserDataTradeLite)
+	case UserDataEventTypeAlgoUpdate:
+		return json.Unmarshal(data, &e.WsUserDataAlgoUpdate)
+	case UserDataEventTypeListenKeyExpired:
 		return nil
+	default:
+		return fmt.Errorf("unexpected event type: %v", e.Event)
 	}
-
-	return fmt.Errorf("unexpected event type: %v", e.Event)
 }
 
 // WsAccountUpdate define account update

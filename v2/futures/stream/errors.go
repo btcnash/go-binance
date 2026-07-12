@@ -20,6 +20,7 @@ var (
 	ErrEventBufferFull        = errors.New("futures stream: event buffer full")
 	ErrOperationSuperseded    = errors.New("futures stream: operation superseded by newer desired state")
 	ErrUnexpectedResponse     = errors.New("futures stream: unexpected response")
+	ErrInvalidDeliveryPolicy  = errors.New("futures stream: invalid delivery policy")
 )
 
 // StreamErrorKind is a machine-readable session failure category.

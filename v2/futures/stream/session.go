@@ -74,6 +74,23 @@ type subscriptionWaiter struct {
 	result chan error
 }
 
+type coalescedEvent struct {
+	event   StreamEvent
+	version uint64
+}
+
+type streamStats struct {
+	eventsReceived        atomic.Uint64
+	eventsDelivered       atomic.Uint64
+	eventsCoalesced       atomic.Uint64
+	eventsReplaced        atomic.Uint64
+	eventBufferOverflows  atomic.Uint64
+	stateEventsDropped    atomic.Uint64
+	errorEventsDropped    atomic.Uint64
+	gapEventsDropped      atomic.Uint64
+	observerEventsDropped atomic.Uint64
+}
+
 type wireRequest struct {
 	Method string      `json:"method"`
 	Params interface{} `json:"params,omitempty"`
@@ -120,6 +137,8 @@ func NewStreamSession(opts StreamSessionOptions) (*StreamSession, error) {
 		gaps:         make(chan GapEvent, normalized.GapBuffer),
 		observations: make(chan streamObservation, normalized.ObserverBuffer),
 		firstReady:   make(chan struct{}),
+		coalesced:    make(map[string]coalescedEvent),
+		coalesceWake: make(chan struct{}, 1),
 		pacer:        newRequestPacer(normalized.RequestInterval),
 	}, nil
 }
@@ -127,6 +146,12 @@ func NewStreamSession(opts StreamSessionOptions) (*StreamSession, error) {
 func normalizeStreamOptions(opts StreamSessionOptions) (StreamSessionOptions, error) {
 	if opts.Class != StreamClassPublic && opts.Class != StreamClassMarket {
 		return StreamSessionOptions{}, fmt.Errorf("%w: class must be public or market", ErrInvalidStreamOptions)
+	}
+	if opts.DeliveryPolicy == "" {
+		opts.DeliveryPolicy = DeliveryPolicyStrict
+	}
+	if opts.DeliveryPolicy != DeliveryPolicyStrict && opts.DeliveryPolicy != DeliveryPolicyLatestByStream {
+		return StreamSessionOptions{}, fmt.Errorf("%w: unsupported policy %q", ErrInvalidDeliveryPolicy, opts.DeliveryPolicy)
 	}
 	if opts.Environment == "" {
 		opts.Environment = EnvironmentMainnet
@@ -169,6 +194,9 @@ func normalizeStreamOptions(opts StreamSessionOptions) (StreamSessionOptions, er
 	for _, sub := range opts.InitialSubscriptions {
 		if err := sub.ValidateFor(opts.Class); err != nil {
 			return StreamSessionOptions{}, err
+		}
+		if opts.DeliveryPolicy == DeliveryPolicyLatestByStream && !sub.supportsLatestValueDelivery() {
+			return StreamSessionOptions{}, fmt.Errorf("%w: stream %q requires strict delivery", ErrInvalidDeliveryPolicy, sub.String())
 		}
 		seen[sub.String()] = struct{}{}
 	}
@@ -223,11 +251,18 @@ func (s *StreamSession) Start(parent context.Context) error {
 		return err
 	}
 
-	s.workers.Add(4)
+	workerCount := 4
+	if s.opts.DeliveryPolicy == DeliveryPolicyLatestByStream {
+		workerCount++
+	}
+	s.workers.Add(workerCount)
 	go s.transportStateLoop(ctx)
 	go s.frameLoop(ctx)
 	go s.reconcileLoop(ctx)
 	go s.observerLoop(ctx)
+	if s.opts.DeliveryPolicy == DeliveryPolicyLatestByStream {
+		go s.coalescingLoop(ctx)
+	}
 	go s.finalize(ctx)
 	return nil
 }
@@ -458,6 +493,9 @@ func (s *StreamSession) validateSubscriptions(subscriptions []Subscription) erro
 	for _, sub := range subscriptions {
 		if err := sub.ValidateFor(s.opts.Class); err != nil {
 			return err
+		}
+		if s.opts.DeliveryPolicy == DeliveryPolicyLatestByStream && !sub.supportsLatestValueDelivery() {
+			return fmt.Errorf("%w: stream %q requires strict delivery", ErrInvalidDeliveryPolicy, sub.String())
 		}
 	}
 	return nil
@@ -742,13 +780,143 @@ func (s *StreamSession) handleFrame(frame managedws.Frame) {
 		Raw:        raw,
 		ReceivedAt: frame.ReceivedAt,
 	}
-	select {
-	case s.events <- event:
-	default:
+	s.stats.eventsReceived.Add(1)
+	if !s.publishEvent(event) {
+		s.stats.eventBufferOverflows.Add(1)
 		err := newStreamError(StreamErrorEventOverflow, "", 0, frame.Generation, ErrEventBufferFull)
 		s.emitError(err)
 		s.emitGap(GapEvent{Reason: GapReasonEventOverflow, FromGeneration: frame.Generation, At: time.Now(), Err: err})
 		_ = s.conn.Interrupt(err)
+	}
+}
+
+func (s *StreamSession) publishEvent(event StreamEvent) bool {
+	if s.opts.DeliveryPolicy == DeliveryPolicyLatestByStream && isLatestValueStream(event.Stream) && s.replacePendingCoalesced(event) {
+		return true
+	}
+	s.outputMu.Lock()
+	if s.outputClosed {
+		s.outputMu.Unlock()
+		return false
+	}
+	select {
+	case s.events <- event:
+		s.outputMu.Unlock()
+		s.stats.eventsDelivered.Add(1)
+		return true
+	default:
+		s.outputMu.Unlock()
+	}
+	if s.opts.DeliveryPolicy != DeliveryPolicyLatestByStream || !isLatestValueStream(event.Stream) {
+		return false
+	}
+	s.coalesceEvent(event)
+	return true
+}
+
+func (s *StreamSession) replacePendingCoalesced(event StreamEvent) bool {
+	s.coalesceMu.Lock()
+	if _, ok := s.coalesced[event.Stream]; !ok {
+		s.coalesceMu.Unlock()
+		return false
+	}
+	s.coalesceSequence++
+	s.coalesced[event.Stream] = coalescedEvent{event: event, version: s.coalesceSequence}
+	s.coalesceMu.Unlock()
+	s.stats.eventsCoalesced.Add(1)
+	s.stats.eventsReplaced.Add(1)
+	select {
+	case s.coalesceWake <- struct{}{}:
+	default:
+	}
+	return true
+}
+
+func isLatestValueStream(name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	return strings.HasSuffix(name, "@bookticker") ||
+		strings.HasSuffix(name, "@ticker") ||
+		strings.HasSuffix(name, "@markprice") ||
+		strings.HasSuffix(name, "@markprice@1s")
+}
+
+func (s *StreamSession) coalesceEvent(event StreamEvent) {
+	s.coalesceMu.Lock()
+	_, replaced := s.coalesced[event.Stream]
+	s.coalesceSequence++
+	s.coalesced[event.Stream] = coalescedEvent{event: event, version: s.coalesceSequence}
+	if !replaced {
+		s.coalesceOrder = append(s.coalesceOrder, event.Stream)
+	}
+	s.coalesceMu.Unlock()
+	s.stats.eventsCoalesced.Add(1)
+	if replaced {
+		s.stats.eventsReplaced.Add(1)
+	}
+	select {
+	case s.coalesceWake <- struct{}{}:
+	default:
+	}
+}
+
+func (s *StreamSession) coalescingLoop(ctx context.Context) {
+	defer s.workers.Done()
+	for {
+		streamName, pending, ok := s.peekCoalesced()
+		if !ok {
+			select {
+			case <-ctx.Done():
+				return
+			case <-s.coalesceWake:
+				continue
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.coalesceWake:
+			continue
+		case s.events <- pending.event:
+			s.stats.eventsDelivered.Add(1)
+			s.completeCoalescedDelivery(streamName, pending.version)
+		}
+	}
+}
+
+func (s *StreamSession) peekCoalesced() (string, coalescedEvent, bool) {
+	s.coalesceMu.Lock()
+	defer s.coalesceMu.Unlock()
+	for len(s.coalesceOrder) > 0 {
+		streamName := s.coalesceOrder[0]
+		if event, ok := s.coalesced[streamName]; ok {
+			return streamName, event, true
+		}
+		s.coalesceOrder = s.coalesceOrder[1:]
+	}
+	return "", coalescedEvent{}, false
+}
+
+func (s *StreamSession) completeCoalescedDelivery(streamName string, version uint64) {
+	s.coalesceMu.Lock()
+	defer s.coalesceMu.Unlock()
+	current, ok := s.coalesced[streamName]
+	if !ok {
+		if len(s.coalesceOrder) > 0 && s.coalesceOrder[0] == streamName {
+			s.coalesceOrder = s.coalesceOrder[1:]
+		}
+		return
+	}
+	if current.version == version {
+		delete(s.coalesced, streamName)
+		if len(s.coalesceOrder) > 0 && s.coalesceOrder[0] == streamName {
+			s.coalesceOrder = s.coalesceOrder[1:]
+		}
+		return
+	}
+	// A newer value arrived while this stream was blocked on delivery. Move it
+	// behind the other pending streams so a single hot symbol cannot starve them.
+	if len(s.coalesceOrder) > 1 && s.coalesceOrder[0] == streamName {
+		s.coalesceOrder = append(s.coalesceOrder[1:], streamName)
 	}
 }
 
@@ -1048,6 +1216,7 @@ func (s *StreamSession) publishState(event StreamStateEvent) {
 		select {
 		case s.states <- event:
 		default:
+			s.stats.stateEventsDropped.Add(1)
 		}
 	}
 	s.outputMu.Unlock()
@@ -1065,6 +1234,7 @@ func (s *StreamSession) emitError(err error) {
 		select {
 		case s.errors <- event:
 		default:
+			s.stats.errorEventsDropped.Add(1)
 		}
 	}
 	s.outputMu.Unlock()
@@ -1077,6 +1247,7 @@ func (s *StreamSession) emitGap(event GapEvent) {
 		select {
 		case s.gaps <- event:
 		default:
+			s.stats.gapEventsDropped.Add(1)
 		}
 	}
 	s.outputMu.Unlock()
@@ -1105,6 +1276,27 @@ func (s *StreamSession) publishObservation(event streamObservation) {
 	select {
 	case s.observations <- event:
 	default:
+		s.stats.observerEventsDropped.Add(1)
+	}
+}
+
+// Stats returns a concurrent-safe snapshot of stream and transport counters.
+func (s *StreamSession) Stats() Stats {
+	var transport managedws.Stats
+	if s.conn != nil {
+		transport = s.conn.Stats()
+	}
+	return Stats{
+		EventsReceived:        s.stats.eventsReceived.Load(),
+		EventsDelivered:       s.stats.eventsDelivered.Load(),
+		EventsCoalesced:       s.stats.eventsCoalesced.Load(),
+		EventsReplaced:        s.stats.eventsReplaced.Load(),
+		EventBufferOverflows:  s.stats.eventBufferOverflows.Load(),
+		StateEventsDropped:    s.stats.stateEventsDropped.Load(),
+		ErrorEventsDropped:    s.stats.errorEventsDropped.Load(),
+		GapEventsDropped:      s.stats.gapEventsDropped.Load(),
+		ObserverEventsDropped: s.stats.observerEventsDropped.Load(),
+		Transport:             transport,
 	}
 }
 

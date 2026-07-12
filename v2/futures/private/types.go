@@ -238,6 +238,19 @@ type Event struct {
 	ReceivedAt         time.Time
 }
 
+// Stats is a concurrent-safe snapshot of private-session activity.
+type Stats struct {
+	EventsDelivered        uint64
+	EventBufferOverflows   uint64
+	DecodeErrors           uint64
+	StateEventsDropped     uint64
+	ErrorEventsDropped     uint64
+	GapEventsDropped       uint64
+	ListenKeyEventsDropped uint64
+	ObserverEventsDropped  uint64
+	Transport              managedws.Stats
+}
+
 // GapReason identifies why callers must assume account/order state may have
 // changed while no trustworthy user-data stream was available.
 type GapReason string

@@ -132,6 +132,22 @@ type ErrorEvent struct {
 	Err        error
 }
 
+// Stats is a lock-free snapshot of managed transport activity. Counters are
+// monotonic for the lifetime of a Connection and may be sampled concurrently.
+type Stats struct {
+	FramesRead             uint64
+	FramesDelivered        uint64
+	FramesWritten          uint64
+	BytesRead              uint64
+	BytesWritten           uint64
+	Reconnects             uint64
+	FrameBufferOverflows   uint64
+	StateEventsDropped     uint64
+	HeartbeatEventsDropped uint64
+	ErrorEventsDropped     uint64
+	ObserverEventsDropped  uint64
+}
+
 // Observer receives lifecycle events without coupling the SDK to a logging or
 // metrics framework. Callbacks run on a dedicated observer goroutine and must
 // return promptly. A bounded observation queue prevents observer work from

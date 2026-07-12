@@ -19,6 +19,19 @@ const (
 	StreamClassMarket StreamClass = "market"
 )
 
+// DeliveryPolicy controls how application events are handled when the output
+// channel is temporarily full.
+type DeliveryPolicy string
+
+const (
+	// DeliveryPolicyStrict preserves every event or reports an overflow gap and
+	// reconnects. It is the default and is required for ordered streams.
+	DeliveryPolicyStrict DeliveryPolicy = "strict"
+	// DeliveryPolicyLatestByStream keeps only the latest blocked event per
+	// stream. It is valid only for ticker, bookTicker, and markPrice streams.
+	DeliveryPolicyLatestByStream DeliveryPolicy = "latest_by_stream"
+)
+
 // Environment selects the Binance deployment used when Endpoint is empty.
 type Environment string
 
@@ -81,6 +94,20 @@ type StreamEvent struct {
 	ReceivedAt time.Time
 }
 
+// Stats is a concurrent-safe snapshot of stream-session activity.
+type Stats struct {
+	EventsReceived        uint64
+	EventsDelivered       uint64
+	EventsCoalesced       uint64
+	EventsReplaced        uint64
+	EventBufferOverflows  uint64
+	StateEventsDropped    uint64
+	ErrorEventsDropped    uint64
+	GapEventsDropped      uint64
+	ObserverEventsDropped uint64
+	Transport             managedws.Stats
+}
+
 // GapReason identifies why callers must assume a market-data gap.
 type GapReason string
 
@@ -136,6 +163,7 @@ type StreamSessionOptions struct {
 	Endpoint    string
 
 	InitialSubscriptions []Subscription
+	DeliveryPolicy       DeliveryPolicy
 
 	// ConnectionOptions are passed to the M1 managed transport. When Dialer is
 	// nil, a Gorilla dialer is created for Endpoint/Class/Environment.
@@ -198,6 +226,13 @@ type StreamSession struct {
 	observations chan streamObservation
 	firstReady   chan struct{}
 	readyOnce    sync.Once
+
+	coalesceMu       sync.Mutex
+	coalesced        map[string]coalescedEvent
+	coalesceOrder    []string
+	coalesceWake     chan struct{}
+	coalesceSequence uint64
+	stats            streamStats
 
 	pacer   *requestPacer
 	workers sync.WaitGroup

@@ -1319,17 +1319,15 @@ type WsUserDataConditionalOrderTriggerReject struct {
 }
 
 func (e *WsUserDataEvent) UnmarshalJSON(data []byte) error {
-	var header struct {
-		Event           UserDataEventType `json:"e"`
-		Time            int64             `json:"E"`
-		TransactionTime int64             `json:"T"`
-	}
-	if err := json.Unmarshal(data, &header); err != nil {
+	header, err := scanUserDataHeader(data)
+	if err != nil {
 		return err
 	}
-	e.Event = header.Event
-	e.Time = header.Time
-	e.TransactionTime = header.TransactionTime
+	*e = WsUserDataEvent{
+		Event:           header.Event,
+		Time:            header.Time,
+		TransactionTime: header.TransactionTime,
+	}
 
 	switch e.Event {
 	case UserDataEventTypeMarginCall:
@@ -1347,10 +1345,162 @@ func (e *WsUserDataEvent) UnmarshalJSON(data []byte) error {
 	case UserDataEventTypeAlgoUpdate:
 		return json.Unmarshal(data, &e.WsUserDataAlgoUpdate)
 	case UserDataEventTypeListenKeyExpired:
+		if !json.Valid(data) {
+			return fmt.Errorf("invalid user data event JSON")
+		}
 		return nil
 	default:
 		return fmt.Errorf("unexpected event type: %v", e.Event)
 	}
+}
+
+type userDataHeader struct {
+	Event           UserDataEventType `json:"e"`
+	Time            int64             `json:"E"`
+	TransactionTime int64             `json:"T"`
+}
+
+func scanUserDataHeader(data []byte) (userDataHeader, error) {
+	i := skipJSONSpace(data, 0)
+	if i >= len(data) || data[i] != '{' {
+		return decodeUserDataHeaderFallback(data)
+	}
+	i = skipJSONSpace(data, i+1)
+	if !hasJSONKey(data, i, 'e') {
+		return decodeUserDataHeaderFallback(data)
+	}
+	i = skipJSONSpace(data, i+3)
+	if i >= len(data) || data[i] != ':' {
+		return decodeUserDataHeaderFallback(data)
+	}
+	i = skipJSONSpace(data, i+1)
+	if i >= len(data) || data[i] != '"' {
+		return decodeUserDataHeaderFallback(data)
+	}
+	start := i + 1
+	for i = start; i < len(data) && data[i] != '"'; i++ {
+		if data[i] == '\\' {
+			return decodeUserDataHeaderFallback(data)
+		}
+	}
+	if i >= len(data) {
+		return decodeUserDataHeaderFallback(data)
+	}
+	header := userDataHeader{Event: userDataEventTypeFromBytes(data[start:i])}
+	i = skipJSONSpace(data, i+1)
+	if i >= len(data) || data[i] != ',' {
+		return decodeUserDataHeaderFallback(data)
+	}
+	i = skipJSONSpace(data, i+1)
+	if !hasJSONKey(data, i, 'E') {
+		return decodeUserDataHeaderFallback(data)
+	}
+	i = skipJSONSpace(data, i+3)
+	if i >= len(data) || data[i] != ':' {
+		return decodeUserDataHeaderFallback(data)
+	}
+	value, next, ok := parsePositiveJSONInt64(data, skipJSONSpace(data, i+1))
+	if !ok {
+		return decodeUserDataHeaderFallback(data)
+	}
+	header.Time = value
+	i = skipJSONSpace(data, next)
+	if i >= len(data) || data[i] == '}' {
+		return header, nil
+	}
+	if data[i] != ',' {
+		return decodeUserDataHeaderFallback(data)
+	}
+	i = skipJSONSpace(data, i+1)
+	if !hasJSONKey(data, i, 'T') {
+		// Preserve compatibility with payloads that place T later in the object.
+		return decodeUserDataHeaderFallback(data)
+	}
+	i = skipJSONSpace(data, i+3)
+	if i >= len(data) || data[i] != ':' {
+		return decodeUserDataHeaderFallback(data)
+	}
+	value, _, ok = parsePositiveJSONInt64(data, skipJSONSpace(data, i+1))
+	if !ok {
+		return decodeUserDataHeaderFallback(data)
+	}
+	header.TransactionTime = value
+	return header, nil
+}
+
+func hasJSONKey(data []byte, i int, key byte) bool {
+	return i+2 < len(data) && data[i] == '"' && data[i+1] == key && data[i+2] == '"'
+}
+
+func parsePositiveJSONInt64(data []byte, i int) (int64, int, bool) {
+	if i >= len(data) || data[i] < '0' || data[i] > '9' {
+		return 0, i, false
+	}
+	var value int64
+	for i < len(data) && data[i] >= '0' && data[i] <= '9' {
+		digit := int64(data[i] - '0')
+		if value > (int64(^uint64(0)>>1)-digit)/10 {
+			return 0, i, false
+		}
+		value = value*10 + digit
+		i++
+	}
+	return value, i, true
+}
+
+func skipJSONSpace(data []byte, i int) int {
+	for i < len(data) {
+		switch data[i] {
+		case ' ', '\t', '\r', '\n':
+			i++
+		default:
+			return i
+		}
+	}
+	return i
+}
+
+func decodeUserDataHeaderFallback(data []byte) (userDataHeader, error) {
+	var header userDataHeader
+	if err := json.Unmarshal(data, &header); err != nil {
+		return userDataHeader{}, err
+	}
+	return header, nil
+}
+
+func userDataEventTypeFromBytes(value []byte) UserDataEventType {
+	switch {
+	case equalBytesString(value, string(UserDataEventTypeMarginCall)):
+		return UserDataEventTypeMarginCall
+	case equalBytesString(value, string(UserDataEventTypeAccountUpdate)):
+		return UserDataEventTypeAccountUpdate
+	case equalBytesString(value, string(UserDataEventTypeOrderTradeUpdate)):
+		return UserDataEventTypeOrderTradeUpdate
+	case equalBytesString(value, string(UserDataEventTypeAccountConfigUpdate)):
+		return UserDataEventTypeAccountConfigUpdate
+	case equalBytesString(value, string(UserDataEventTypeConditionalOrderTriggerReject)):
+		return UserDataEventTypeConditionalOrderTriggerReject
+	case equalBytesString(value, string(UserDataEventTypeTradeLite)):
+		return UserDataEventTypeTradeLite
+	case equalBytesString(value, string(UserDataEventTypeAlgoUpdate)):
+		return UserDataEventTypeAlgoUpdate
+	case equalBytesString(value, string(UserDataEventTypeListenKeyExpired)):
+		return UserDataEventTypeListenKeyExpired
+	default:
+		return UserDataEventType(string(value))
+	}
+}
+
+func equalBytesString(value []byte, expected string) bool {
+	if len(value) != len(expected) {
+		return false
+	}
+	for i := range value {
+		if value[i] != expected[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // WsAccountUpdate define account update

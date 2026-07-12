@@ -27,6 +27,7 @@ type Connection struct {
 	// Keep 64-bit atomics first for correct alignment on 32-bit platforms.
 	reconnectCount    uint64
 	currentGeneration atomic.Uint64
+	stats             connectionStats
 
 	opts Options
 
@@ -51,6 +52,19 @@ type Connection struct {
 
 	observations chan observation
 	observerDone chan struct{}
+}
+
+type connectionStats struct {
+	framesRead             atomic.Uint64
+	framesDelivered        atomic.Uint64
+	framesWritten          atomic.Uint64
+	bytesRead              atomic.Uint64
+	bytesWritten           atomic.Uint64
+	frameBufferOverflows   atomic.Uint64
+	stateEventsDropped     atomic.Uint64
+	heartbeatEventsDropped atomic.Uint64
+	errorEventsDropped     atomic.Uint64
+	observerEventsDropped  atomic.Uint64
 }
 
 // NewConnection validates options and creates an idle managed connection.
@@ -258,6 +272,23 @@ func (c *Connection) Generation() uint64 {
 // dial is not counted.
 func (c *Connection) ReconnectCount() uint64 {
 	return atomic.LoadUint64(&c.reconnectCount)
+}
+
+// Stats returns a concurrent-safe snapshot of transport counters.
+func (c *Connection) Stats() Stats {
+	return Stats{
+		FramesRead:             c.stats.framesRead.Load(),
+		FramesDelivered:        c.stats.framesDelivered.Load(),
+		FramesWritten:          c.stats.framesWritten.Load(),
+		BytesRead:              c.stats.bytesRead.Load(),
+		BytesWritten:           c.stats.bytesWritten.Load(),
+		Reconnects:             atomic.LoadUint64(&c.reconnectCount),
+		FrameBufferOverflows:   c.stats.frameBufferOverflows.Load(),
+		StateEventsDropped:     c.stats.stateEventsDropped.Load(),
+		HeartbeatEventsDropped: c.stats.heartbeatEventsDropped.Load(),
+		ErrorEventsDropped:     c.stats.errorEventsDropped.Load(),
+		ObserverEventsDropped:  c.stats.observerEventsDropped.Load(),
+	}
 }
 
 // TerminalError returns the error that ended the connection in StateFailed.
@@ -485,6 +516,7 @@ func (c *Connection) transition(next State, reason StateReason, attempt int, err
 	select {
 	case c.states <- event:
 	default:
+		c.stats.stateEventsDropped.Add(1)
 		// Observation must never block transport liveness.
 	}
 	c.publishObservation(observation{kind: observationState, state: event})
@@ -494,6 +526,7 @@ func (c *Connection) emitHeartbeat(event HeartbeatEvent) {
 	select {
 	case c.heartbeats <- event:
 	default:
+		c.stats.heartbeatEventsDropped.Add(1)
 	}
 	c.publishObservation(observation{kind: observationHeartbeat, heartbeat: event})
 }
@@ -513,6 +546,7 @@ func (c *Connection) emitError(err error) {
 	select {
 	case c.errors <- event:
 	default:
+		c.stats.errorEventsDropped.Add(1)
 	}
 	c.publishObservation(observation{kind: observationError, err: event})
 }
@@ -539,6 +573,7 @@ func (c *Connection) publishObservation(event observation) {
 	select {
 	case c.observations <- event:
 	default:
+		c.stats.observerEventsDropped.Add(1)
 	}
 }
 

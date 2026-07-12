@@ -19,6 +19,14 @@ func (s Subscription) Class() StreamClass { return s.class }
 // String returns the exact Binance stream name sent in SUBSCRIBE requests.
 func (s Subscription) String() string { return s.name }
 
+func (s Subscription) supportsLatestValueDelivery() bool {
+	name := strings.ToLower(s.name)
+	return strings.HasSuffix(name, "@bookticker") ||
+		strings.HasSuffix(name, "@ticker") ||
+		strings.HasSuffix(name, "@markprice") ||
+		strings.HasSuffix(name, "@markprice@1s")
+}
+
 // Validate checks the subscription itself.
 func (s Subscription) Validate() error {
 	if s.invalid != "" {

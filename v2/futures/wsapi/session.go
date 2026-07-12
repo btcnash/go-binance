@@ -17,6 +17,7 @@ type Environment string
 type Session = apiws.Session
 type Request = apiws.Request
 type Response = apiws.Response
+type Stats = apiws.Stats
 type APIOptions = apiws.Options
 type Authenticator = apiws.Authenticator
 type AuthenticatorFuncs = apiws.AuthenticatorFuncs

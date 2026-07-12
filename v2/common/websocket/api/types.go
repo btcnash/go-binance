@@ -140,6 +140,19 @@ type ErrorEvent struct {
 	Err        error
 }
 
+// Stats is a concurrent-safe snapshot of API-session activity.
+type Stats struct {
+	RequestsStarted       uint64
+	RequestsCompleted     uint64
+	RequestFailures       uint64
+	ResponsesDelivered    uint64
+	UnsolicitedDropped    uint64
+	StateEventsDropped    uint64
+	ErrorEventsDropped    uint64
+	ObserverEventsDropped uint64
+	Transport             managedws.Stats
+}
+
 // Observer receives observations on a dedicated bounded worker.
 type Observer interface {
 	OnState(StateEvent)

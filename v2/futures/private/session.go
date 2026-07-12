@@ -82,6 +82,18 @@ type Session struct {
 	observations chan observation
 	observerDone chan struct{}
 	workers      sync.WaitGroup
+	stats        sessionStats
+}
+
+type sessionStats struct {
+	eventsDelivered        atomic.Uint64
+	eventBufferOverflows   atomic.Uint64
+	decodeErrors           atomic.Uint64
+	stateEventsDropped     atomic.Uint64
+	errorEventsDropped     atomic.Uint64
+	gapEventsDropped       atomic.Uint64
+	listenKeyEventsDropped atomic.Uint64
+	observerEventsDropped  atomic.Uint64
 }
 
 // NewSession creates an idle managed private user-data session.
@@ -520,6 +532,9 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 	}
 	decoded := new(futures.WsUserDataEvent)
 	decodeErr := json.Unmarshal(payload, decoded)
+	if decodeErr != nil {
+		s.stats.decodeErrors.Add(1)
+	}
 	eventType := decoded.Event
 	if eventType == "" {
 		if code, message, rejected := exactPrivateRejection(payload); rejected && isInvalidListenKeyCode(code) {
@@ -560,6 +575,7 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 	}
 
 	if !s.publishEvent(event) {
+		s.stats.eventBufferOverflows.Add(1)
 		wrapped := privateError(ErrorEventOverflow, sourceID, frame.Generation, "deliver_event", ErrEventBufferFull)
 		s.emitError(wrapped)
 		s.emitGap(GapEvent{Reason: GapReasonEventOverflow, FromGeneration: frame.Generation, SourceIDs: candidateOrAll(sourceID, candidates, bindingIndex), At: time.Now(), Err: wrapped})
@@ -838,6 +854,7 @@ func (s *Session) publishEvent(event Event) bool {
 	}
 	select {
 	case s.events <- event:
+		s.stats.eventsDelivered.Add(1)
 		return true
 	default:
 		return false
@@ -849,6 +866,7 @@ func (s *Session) publishState(event StateEvent) {
 		select {
 		case s.states <- event:
 		default:
+			s.stats.stateEventsDropped.Add(1)
 		}
 	}
 	s.outputMu.Unlock()
@@ -871,6 +889,7 @@ func (s *Session) emitError(err error) {
 		select {
 		case s.errors <- event:
 		default:
+			s.stats.errorEventsDropped.Add(1)
 		}
 	}
 	s.outputMu.Unlock()
@@ -883,6 +902,7 @@ func (s *Session) emitGap(event GapEvent) {
 		select {
 		case s.gaps <- event:
 		default:
+			s.stats.gapEventsDropped.Add(1)
 		}
 	}
 	s.outputMu.Unlock()
@@ -894,6 +914,7 @@ func (s *Session) emitListenKey(event ListenKeyEvent) {
 		select {
 		case s.listenKeys <- event:
 		default:
+			s.stats.listenKeyEventsDropped.Add(1)
 		}
 	}
 	s.outputMu.Unlock()
@@ -921,6 +942,26 @@ func (s *Session) publishObservation(event observation) {
 	select {
 	case s.observations <- event:
 	default:
+		s.stats.observerEventsDropped.Add(1)
+	}
+}
+
+// Stats returns a concurrent-safe snapshot of private-session counters.
+func (s *Session) Stats() Stats {
+	var transport managedws.Stats
+	if s.conn != nil {
+		transport = s.conn.Stats()
+	}
+	return Stats{
+		EventsDelivered:        s.stats.eventsDelivered.Load(),
+		EventBufferOverflows:   s.stats.eventBufferOverflows.Load(),
+		DecodeErrors:           s.stats.decodeErrors.Load(),
+		StateEventsDropped:     s.stats.stateEventsDropped.Load(),
+		ErrorEventsDropped:     s.stats.errorEventsDropped.Load(),
+		GapEventsDropped:       s.stats.gapEventsDropped.Load(),
+		ListenKeyEventsDropped: s.stats.listenKeyEventsDropped.Load(),
+		ObserverEventsDropped:  s.stats.observerEventsDropped.Load(),
+		Transport:              transport,
 	}
 }
 func (s *Session) observerLoop() {

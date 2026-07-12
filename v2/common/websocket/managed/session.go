@@ -194,15 +194,22 @@ func (s *physicalSession) writerLoop() {
 }
 
 func (s *physicalSession) performWrite(req writeRequest) error {
+	var err error
 	if req.control {
-		return s.socket.WriteControl(req.messageType, req.payload, req.deadline)
-	}
-	if setter, ok := s.socket.(interface{ SetWriteDeadline(time.Time) error }); ok {
-		if err := setter.SetWriteDeadline(req.deadline); err != nil {
-			return err
+		err = s.socket.WriteControl(req.messageType, req.payload, req.deadline)
+	} else {
+		if setter, ok := s.socket.(interface{ SetWriteDeadline(time.Time) error }); ok {
+			if err = setter.SetWriteDeadline(req.deadline); err != nil {
+				return err
+			}
 		}
+		err = s.socket.WriteMessage(req.messageType, req.payload)
 	}
-	return s.socket.WriteMessage(req.messageType, req.payload)
+	if err == nil {
+		s.owner.stats.framesWritten.Add(1)
+		s.owner.stats.bytesWritten.Add(uint64(len(req.payload)))
+	}
+	return err
 }
 
 func (s *physicalSession) enqueueWrite(ctx context.Context, req writeRequest) error {
@@ -265,6 +272,8 @@ func (s *physicalSession) readerLoop() {
 			}
 			return
 		}
+		s.owner.stats.framesRead.Add(1)
+		s.owner.stats.bytesRead.Add(uint64(len(payload)))
 		if !s.owner.isCurrentGeneration(s.generation) {
 			continue
 		}
@@ -276,7 +285,9 @@ func (s *physicalSession) readerLoop() {
 		}
 		select {
 		case s.owner.frames <- frame:
+			s.owner.stats.framesDelivered.Add(1)
 		default:
+			s.owner.stats.frameBufferOverflows.Add(1)
 			s.fail(connectionError(
 				ErrorFrameBufferFull,
 				s.generation,

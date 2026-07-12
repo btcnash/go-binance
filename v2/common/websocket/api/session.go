@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
@@ -89,6 +90,18 @@ type Session struct {
 	workerMu sync.Mutex
 	stopping bool
 	workers  sync.WaitGroup
+	stats    sessionStats
+}
+
+type sessionStats struct {
+	requestsStarted       atomic.Uint64
+	requestsCompleted     atomic.Uint64
+	requestFailures       atomic.Uint64
+	responsesDelivered    atomic.Uint64
+	unsolicitedDropped    atomic.Uint64
+	stateEventsDropped    atomic.Uint64
+	errorEventsDropped    atomic.Uint64
+	observerEventsDropped atomic.Uint64
 }
 
 // NewSession validates options and creates an idle API session.
@@ -510,6 +523,7 @@ func (s *Session) doOnSlot(ctx context.Context, slot *transportSlot, transportGe
 	}
 	used[request.ID] = struct{}{}
 	s.pending[request.ID] = p
+	s.stats.requestsStarted.Add(1)
 	rotationThreshold := s.opts.MaxRequestIDsPerGeneration - s.opts.MaxRequestIDsPerGeneration/10
 	if len(used) >= rotationThreshold {
 		s.requestRotationLocked(slot)
@@ -615,6 +629,7 @@ func (s *Session) emitUnsolicited(slot *transportSlot, frame managedws.Frame) {
 	select {
 	case s.unsolicited <- event:
 	default:
+		s.stats.unsolicitedDropped.Add(1)
 	}
 }
 
@@ -653,6 +668,12 @@ func (s *Session) completePending(p *pendingRequest, result pendingResult) bool 
 	delete(s.pending, p.request.ID)
 	draining := p.slot != nil && p.slot.draining
 	s.mu.Unlock()
+	s.stats.requestsCompleted.Add(1)
+	if result.err != nil {
+		s.stats.requestFailures.Add(1)
+	} else {
+		s.stats.responsesDelivered.Add(1)
+	}
 	if draining {
 		s.notifyDrain()
 	}
@@ -940,6 +961,7 @@ func (s *Session) transition(next State, reason StateReason, generation uint64, 
 	select {
 	case s.states <- event:
 	default:
+		s.stats.stateEventsDropped.Add(1)
 	}
 	s.publishObservation(observation{state: &event})
 }
@@ -948,6 +970,7 @@ func (s *Session) emitError(event ErrorEvent) {
 	select {
 	case s.errors <- event:
 	default:
+		s.stats.errorEventsDropped.Add(1)
 	}
 	s.publishObservation(observation{err: &event})
 }
@@ -959,6 +982,30 @@ func (s *Session) publishObservation(event observation) {
 	select {
 	case s.observations <- event:
 	default:
+		s.stats.observerEventsDropped.Add(1)
+	}
+}
+
+// Stats returns a concurrent-safe snapshot of API and active transport
+// counters. During rotation, Transport describes the current active slot.
+func (s *Session) Stats() Stats {
+	s.mu.Lock()
+	active := s.active
+	s.mu.Unlock()
+	var transport managedws.Stats
+	if active != nil && active.conn != nil {
+		transport = active.conn.Stats()
+	}
+	return Stats{
+		RequestsStarted:       s.stats.requestsStarted.Load(),
+		RequestsCompleted:     s.stats.requestsCompleted.Load(),
+		RequestFailures:       s.stats.requestFailures.Load(),
+		ResponsesDelivered:    s.stats.responsesDelivered.Load(),
+		UnsolicitedDropped:    s.stats.unsolicitedDropped.Load(),
+		StateEventsDropped:    s.stats.stateEventsDropped.Load(),
+		ErrorEventsDropped:    s.stats.errorEventsDropped.Load(),
+		ObserverEventsDropped: s.stats.observerEventsDropped.Load(),
+		Transport:             transport,
 	}
 }
 

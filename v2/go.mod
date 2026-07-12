@@ -1,6 +1,6 @@
 module github.com/btcnash/go-binance/v2
 
-go 1.18
+go 1.26.3
 
 require (
 	github.com/bitly/go-simplejson v0.5.0

@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	managedws "github.com/adshao/go-binance/v2/common/websocket/managed"
-	managedgorilla "github.com/adshao/go-binance/v2/common/websocket/managed/gorilla"
-	"github.com/adshao/go-binance/v2/futures"
+	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
+	managedgorilla "github.com/btcnash/go-binance/v2/common/websocket/managed/gorilla"
+	"github.com/btcnash/go-binance/v2/futures"
 )
 
 var privateRoots = map[Environment]string{

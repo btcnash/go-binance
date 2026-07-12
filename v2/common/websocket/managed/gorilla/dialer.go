@@ -11,7 +11,7 @@ import (
 
 	gorillaws "github.com/gorilla/websocket"
 
-	"github.com/adshao/go-binance/v2/common/websocket/managed"
+	"github.com/btcnash/go-binance/v2/common/websocket/managed"
 )
 
 const defaultHandshakeTimeout = 45 * time.Second

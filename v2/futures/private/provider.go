@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/adshao/go-binance/v2/common"
-	"github.com/adshao/go-binance/v2/futures"
+	"github.com/btcnash/go-binance/v2/common"
+	"github.com/btcnash/go-binance/v2/futures"
 )
 
 // RESTListenKeyProvider adapts the existing Futures REST client to the managed

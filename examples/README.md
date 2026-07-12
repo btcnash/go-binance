@@ -71,3 +71,11 @@ if err := AppConfig.Validate(); err != nil {
 ```
 
 This ensures that all examples fail gracefully if credentials are not properly configured. 
+
+## Managed Futures WebSocket examples
+
+The managed examples live in the v2 module so they compile against the fork directly:
+
+- `v2/examples/managed_futures_stream`
+- `v2/examples/managed_futures_private`
+- `v2/examples/managed_futures_wsapi`

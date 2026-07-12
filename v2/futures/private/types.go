@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"time"
 
-	managedws "github.com/adshao/go-binance/v2/common/websocket/managed"
-	"github.com/adshao/go-binance/v2/futures"
+	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
+	"github.com/btcnash/go-binance/v2/futures"
 )
 
 // Environment selects the Binance deployment used when Endpoint is empty.

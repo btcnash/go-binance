@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	apiws "github.com/adshao/go-binance/v2/common/websocket/api"
-	managedws "github.com/adshao/go-binance/v2/common/websocket/managed"
+	apiws "github.com/btcnash/go-binance/v2/common/websocket/api"
+	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
 	"github.com/gorilla/websocket"
 )
 

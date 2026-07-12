@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	apiws "github.com/adshao/go-binance/v2/common/websocket/api"
+	apiws "github.com/btcnash/go-binance/v2/common/websocket/api"
 )
 
 // ManagedClient adapts the M4 managed API Session to the legacy Client

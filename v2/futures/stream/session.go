@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	managedws "github.com/adshao/go-binance/v2/common/websocket/managed"
-	managedgorilla "github.com/adshao/go-binance/v2/common/websocket/managed/gorilla"
+	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
+	managedgorilla "github.com/btcnash/go-binance/v2/common/websocket/managed/gorilla"
 )
 
 const (

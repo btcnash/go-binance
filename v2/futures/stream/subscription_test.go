@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	managedgorilla "github.com/adshao/go-binance/v2/common/websocket/managed/gorilla"
+	managedgorilla "github.com/btcnash/go-binance/v2/common/websocket/managed/gorilla"
 	"time"
 )
 

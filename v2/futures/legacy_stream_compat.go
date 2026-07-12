@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	managedws "github.com/adshao/go-binance/v2/common/websocket/managed"
-	managedgorilla "github.com/adshao/go-binance/v2/common/websocket/managed/gorilla"
-	managedstream "github.com/adshao/go-binance/v2/futures/stream"
+	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
+	managedgorilla "github.com/btcnash/go-binance/v2/common/websocket/managed/gorilla"
+	managedstream "github.com/btcnash/go-binance/v2/futures/stream"
 )
 
 type legacyDynamicStreamSpec struct {

@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adshao/go-binance/v2"
+	"github.com/btcnash/go-binance/v2"
 )
 
 // Config holds the application configuration

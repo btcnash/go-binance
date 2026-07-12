@@ -13,7 +13,7 @@ import (
 
 	gorillaws "github.com/gorilla/websocket"
 
-	"github.com/adshao/go-binance/v2/futures"
+	"github.com/btcnash/go-binance/v2/futures"
 )
 
 type fakeProvider struct {

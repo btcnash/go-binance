@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/adshao/go-binance/v2"
+	"github.com/btcnash/go-binance/v2"
 	"github.com/google/uuid"
 )
 

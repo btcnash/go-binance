@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	futureswsapi "github.com/adshao/go-binance/v2/futures/wsapi"
+	futureswsapi "github.com/btcnash/go-binance/v2/futures/wsapi"
 )
 
 func main() {

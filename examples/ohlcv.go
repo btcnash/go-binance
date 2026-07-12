@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/adshao/go-binance/v2"
+	"github.com/btcnash/go-binance/v2"
 )
 
 func Ohlcv() {

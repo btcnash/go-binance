@@ -1,8 +1,8 @@
 package futures
 
 import (
-	legacyws "github.com/adshao/go-binance/v2/common/websocket"
-	managedfutures "github.com/adshao/go-binance/v2/futures/wsapi"
+	legacyws "github.com/btcnash/go-binance/v2/common/websocket"
+	managedfutures "github.com/btcnash/go-binance/v2/futures/wsapi"
 )
 
 func newManagedLegacyWSAPIClient() (legacyws.Client, error) {

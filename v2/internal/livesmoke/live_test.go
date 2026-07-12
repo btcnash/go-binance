@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	apiws "github.com/adshao/go-binance/v2/common/websocket/api"
-	managedws "github.com/adshao/go-binance/v2/common/websocket/managed"
-	"github.com/adshao/go-binance/v2/futures"
-	privatews "github.com/adshao/go-binance/v2/futures/private"
-	streamws "github.com/adshao/go-binance/v2/futures/stream"
-	futureswsapi "github.com/adshao/go-binance/v2/futures/wsapi"
+	apiws "github.com/btcnash/go-binance/v2/common/websocket/api"
+	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
+	"github.com/btcnash/go-binance/v2/futures"
+	privatews "github.com/btcnash/go-binance/v2/futures/private"
+	streamws "github.com/btcnash/go-binance/v2/futures/stream"
+	futureswsapi "github.com/btcnash/go-binance/v2/futures/wsapi"
 )
 
 func requireLive(t *testing.T) {

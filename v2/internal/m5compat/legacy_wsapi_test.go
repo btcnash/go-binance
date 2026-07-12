@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adshao/go-binance/v2/futures"
+	"github.com/btcnash/go-binance/v2/futures"
 	"github.com/gorilla/websocket"
 )
 

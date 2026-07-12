@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	apiws "github.com/adshao/go-binance/v2/common/websocket/api"
-	managedws "github.com/adshao/go-binance/v2/common/websocket/managed"
-	managedgorilla "github.com/adshao/go-binance/v2/common/websocket/managed/gorilla"
+	apiws "github.com/btcnash/go-binance/v2/common/websocket/api"
+	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
+	managedgorilla "github.com/btcnash/go-binance/v2/common/websocket/managed/gorilla"
 )
 
 // Environment selects the Binance Futures deployment when Endpoint is empty.

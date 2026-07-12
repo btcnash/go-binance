@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/adshao/go-binance/v2/futures/stream"
+	"github.com/btcnash/go-binance/v2/futures/stream"
 )
 
 func main() {

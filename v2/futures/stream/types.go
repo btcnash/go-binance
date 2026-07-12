@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	managedws "github.com/adshao/go-binance/v2/common/websocket/managed"
+	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
 )
 
 // StreamClass selects the Binance Futures WebSocket entry point.

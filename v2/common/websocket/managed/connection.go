@@ -73,6 +73,9 @@ func NewConnection(opts Options) (*Connection, error) {
 }
 
 func normalizeOptions(opts Options) (Options, error) {
+	if opts.MaxConnectionAge < 0 {
+		return Options{}, fmt.Errorf("%w: max connection age must not be negative", ErrInvalidOptions)
+	}
 	if opts.Dialer == nil {
 		return Options{}, fmt.Errorf("%w: dialer is required", ErrInvalidOptions)
 	}
@@ -570,6 +573,8 @@ func reasonForError(err error) StateReason {
 		return ReasonPongTimeout
 	case ErrorInterrupted:
 		return ReasonInterrupted
+	case ErrorMaxAgeReached:
+		return ReasonMaxAgeReached
 	case ErrorFrameBufferFull:
 		return ReasonFrameBufferFull
 	default:

@@ -78,6 +78,7 @@ const (
 	ReasonFrameBufferFull    StateReason = "frame_buffer_full"
 	ReasonReconnectScheduled StateReason = "reconnect_scheduled"
 	ReasonReconnectExhausted StateReason = "reconnect_exhausted"
+	ReasonMaxAgeReached      StateReason = "max_age_reached"
 	ReasonContextCanceled    StateReason = "context_canceled"
 	ReasonUserClosed         StateReason = "user_closed"
 )
@@ -202,4 +203,8 @@ type Options struct {
 	ErrorBuffer     int
 	ObserverBuffer  int
 	Observer        Observer
+
+	// MaxConnectionAge proactively recycles a physical connection before an
+	// exchange-enforced lifetime. Zero disables age-based recycling.
+	MaxConnectionAge time.Duration
 }

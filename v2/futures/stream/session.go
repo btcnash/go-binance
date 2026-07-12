@@ -15,12 +15,13 @@ import (
 )
 
 const (
-	defaultAckTimeout      = 5 * time.Second
-	defaultRequestInterval = 200 * time.Millisecond
-	defaultMaxBatchSize    = 100
-	defaultMaxStreams      = 1024
-	defaultEventBuffer     = 256
-	defaultSessionBuffer   = 64
+	defaultAckTimeout       = 5 * time.Second
+	defaultRequestInterval  = 200 * time.Millisecond
+	defaultMaxBatchSize     = 100
+	defaultMaxStreams       = 1024
+	defaultEventBuffer      = 256
+	defaultSessionBuffer    = 64
+	defaultConnectionMaxAge = 23*time.Hour + 50*time.Minute
 )
 
 const (
@@ -190,6 +191,9 @@ func normalizeStreamOptions(opts StreamSessionOptions) (StreamSessionOptions, er
 	}
 	if !opts.DisableReconnect && !opts.ConnectionOptions.Reconnect.Enabled {
 		opts.ConnectionOptions.Reconnect.Enabled = true
+	}
+	if !opts.DisableRotation && opts.ConnectionOptions.MaxConnectionAge == 0 {
+		opts.ConnectionOptions.MaxConnectionAge = defaultConnectionMaxAge
 	}
 	return opts, nil
 }

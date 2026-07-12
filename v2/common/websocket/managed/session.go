@@ -110,6 +110,22 @@ func (s *physicalSession) start() {
 		s.wg.Add(1)
 		go s.heartbeatLoop()
 	}
+	if s.owner.opts.MaxConnectionAge > 0 {
+		s.wg.Add(1)
+		go s.maxAgeLoop()
+	}
+}
+
+func (s *physicalSession) maxAgeLoop() {
+	defer s.wg.Done()
+	timer := time.NewTimer(s.owner.opts.MaxConnectionAge)
+	defer timer.Stop()
+	select {
+	case <-s.ctx.Done():
+		return
+	case <-timer.C:
+		s.fail(connectionError(ErrorMaxAgeReached, s.generation, "max_connection_age", fmt.Errorf("physical connection reached max age %s", s.owner.opts.MaxConnectionAge)))
+	}
 }
 
 func (s *physicalSession) stop() {

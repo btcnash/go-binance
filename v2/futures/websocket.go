@@ -1,10 +1,13 @@
 package futures
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"time"
 
+	managedws "github.com/adshao/go-binance/v2/common/websocket/managed"
+	managedgorilla "github.com/adshao/go-binance/v2/common/websocket/managed/gorilla"
 	"github.com/gorilla/websocket"
 )
 
@@ -21,101 +24,120 @@ type WsConfig struct {
 }
 
 func newWsConfig(endpoint string) *WsConfig {
-	return &WsConfig{
-		Endpoint: endpoint,
-		Proxy:    getWsProxyUrl(),
-	}
+	return &WsConfig{Endpoint: endpoint, Proxy: getWsProxyUrl()}
 }
 
-var wsServe = func(cfg *WsConfig, handler WsHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
+// wsServe remains a variable for compatibility with the legacy test/mocking
+// surface. Its production implementation is backed by ManagedConnection.
+var wsServe = managedWsServe
+
+func managedWsServe(cfg *WsConfig, handler WsHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
+	if spec, ok := parseLegacyDynamicStream(cfg.Endpoint); ok {
+		return managedDynamicStreamServe(cfg, spec, handler, errHandler)
+	}
+	return managedRawWsServe(cfg, handler, errHandler)
+}
+
+func managedRawWsServe(cfg *WsConfig, handler WsHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
 	proxy := http.ProxyFromEnvironment
 	if cfg.Proxy != nil {
-		u, err := url.Parse(*cfg.Proxy)
-		if err != nil {
-			return nil, nil, err
+		u, parseErr := url.Parse(*cfg.Proxy)
+		if parseErr != nil {
+			return nil, nil, parseErr
 		}
 		proxy = http.ProxyURL(u)
 	}
-	Dialer := websocket.Dialer{
-		Proxy:             proxy,
-		HandshakeTimeout:  45 * time.Second,
-		EnableCompression: true,
+
+	options := managedws.Options{
+		Dialer: managedgorilla.Dialer{
+			Endpoint:          cfg.Endpoint,
+			Proxy:             proxy,
+			HandshakeTimeout:  45 * time.Second,
+			EnableCompression: true,
+			ReadLimit:         655350,
+		},
+		Reconnect: managedws.ReconnectPolicy{Enabled: true},
+		// Binance closes Futures WebSocket connections after 24 hours. Recycle
+		// the physical connection before that deadline and let the managed
+		// transport restore the same legacy URL subscription.
+		MaxConnectionAge: 23*time.Hour + 50*time.Minute,
+	}
+	if WebsocketKeepalive {
+		pingInterval := WebsocketTimeout
+		if pingInterval <= 0 {
+			pingInterval = 5 * time.Second
+		}
+		pongTimeout := WebsocketPongTimeout
+		if pongTimeout <= 0 {
+			pongTimeout = 3 * time.Second
+		}
+		options.Heartbeat = managedws.HeartbeatOptions{
+			Enabled:      true,
+			PingInterval: pingInterval,
+			PongTimeout:  pongTimeout,
+			WriteTimeout: pongTimeout,
+		}
 	}
 
-	c, _, err := Dialer.Dial(cfg.Endpoint, nil)
+	conn, err := managedws.NewConnection(options)
 	if err != nil {
 		return nil, nil, err
 	}
-	c.SetReadLimit(655350)
+	lifecycleCtx, cancel := context.WithCancel(context.Background())
+	if err := conn.Start(lifecycleCtx); err != nil {
+		cancel()
+		return nil, nil, err
+	}
+	readyCtx, readyCancel := context.WithTimeout(lifecycleCtx, 45*time.Second)
+	err = conn.WaitReady(readyCtx)
+	readyCancel()
+	if err != nil {
+		cancel()
+		_ = conn.Close()
+		return nil, nil, err
+	}
+
 	doneC = make(chan struct{})
-	stopC = make(chan struct{})
+	stopC = make(chan struct{}, 1)
 	go func() {
-		// This function will exit either on error from
-		// websocket.Conn.ReadMessage or when the stopC channel is
-		// closed by the client.
 		defer close(doneC)
-		if WebsocketKeepalive {
-			keepAlive(c, WebsocketTimeout)
-		}
-		// Wait for the stopC channel to be closed.  We do that in a
-		// separate goroutine because ReadMessage is a blocking
-		// operation.
-		silent := false
-		go func() {
+		defer cancel()
+		defer conn.Close()
+
+		frames := conn.Frames()
+		errorsC := conn.Errors()
+		for frames != nil || errorsC != nil {
 			select {
 			case <-stopC:
-				silent = true
-			case <-doneC:
-			}
-			c.Close()
-		}()
-		for {
-			_, message, err := c.ReadMessage()
-			if err != nil {
-				if !silent {
-					errHandler(err)
+				return
+			case <-conn.Done():
+				return
+			case frame, ok := <-frames:
+				if !ok {
+					frames = nil
+					continue
 				}
-				return
-			}
-			handler(message)
-		}
-	}()
-	return
-}
-
-func keepAlive(c *websocket.Conn, timeout time.Duration) {
-	ticker := time.NewTicker(timeout)
-
-	lastResponse := time.Now()
-
-	c.SetPingHandler(func(pingData string) error {
-		// Respond with Pong using the server's PING payload
-		err := c.WriteControl(
-			websocket.PongMessage,
-			[]byte(pingData),
-			time.Now().Add(WebsocketPongTimeout), // Short deadline to ensure timely response
-		)
-		if err != nil {
-			return err
-		}
-
-		lastResponse = time.Now()
-
-		return nil
-	})
-
-	go func() {
-		defer ticker.Stop()
-		for {
-			<-ticker.C
-			if time.Since(lastResponse) > timeout {
-				c.Close()
-				return
+				if frame.Type == managedws.TextMessage || frame.Type == managedws.BinaryMessage {
+					handler(frame.Payload)
+				}
+			case event, ok := <-errorsC:
+				if !ok {
+					errorsC = nil
+					continue
+				}
+				// Proactive age rotation is expected lifecycle, not an error
+				// that legacy callers need to handle.
+				if event.Kind != managedws.ErrorMaxAgeReached && errHandler != nil {
+					errHandler(event.Err)
+				}
 			}
 		}
 	}()
+	return doneC, stopC, nil
 }
 
+// WsGetReadWriteConnection is retained for source compatibility. New Futures
+// WSAPI services use futures/wsapi managed sessions instead.
 var WsGetReadWriteConnection = func(cfg *WsConfig) (*websocket.Conn, error) {
 	proxy := http.ProxyFromEnvironment
 	if cfg.Proxy != nil {
@@ -126,16 +148,14 @@ var WsGetReadWriteConnection = func(cfg *WsConfig) (*websocket.Conn, error) {
 		proxy = http.ProxyURL(u)
 	}
 
-	Dialer := websocket.Dialer{
+	dialer := websocket.Dialer{
 		Proxy:             proxy,
 		HandshakeTimeout:  45 * time.Second,
 		EnableCompression: false,
 	}
-
-	c, _, err := Dialer.Dial(cfg.Endpoint, nil)
+	c, _, err := dialer.Dial(cfg.Endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
-
 	return c, nil
 }

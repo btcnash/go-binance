@@ -91,6 +91,8 @@ type Source struct {
 type ConnectionOptions struct {
 	DisableHeartbeat bool
 	DisableReconnect bool
+	DisableRotation  bool
+	MaxConnectionAge time.Duration
 
 	HeartbeatPingInterval time.Duration
 	HeartbeatPongTimeout  time.Duration

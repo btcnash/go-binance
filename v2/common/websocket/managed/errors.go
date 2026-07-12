@@ -27,6 +27,7 @@ const (
 	ErrorInterrupted        ErrorKind = "interrupted"
 	ErrorFrameBufferFull    ErrorKind = "frame_buffer_full"
 	ErrorReconnectExhausted ErrorKind = "reconnect_exhausted"
+	ErrorMaxAgeReached      ErrorKind = "max_age_reached"
 )
 
 // ConnectionError adds transport context to an underlying error.

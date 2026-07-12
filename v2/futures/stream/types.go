@@ -141,6 +141,7 @@ type StreamSessionOptions struct {
 	ConnectionOptions managedws.Options
 	DisableHeartbeat  bool
 	DisableReconnect  bool
+	DisableRotation   bool
 
 	AckTimeout      time.Duration
 	RequestInterval time.Duration

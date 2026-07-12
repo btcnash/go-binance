@@ -24,6 +24,7 @@ const (
 	defaultKeepAliveAttempts = 3
 	defaultPrivateBuffer     = 64
 	defaultEventBuffer       = 256
+	defaultConnectionMaxAge  = 23*time.Hour + 50*time.Minute
 )
 
 type observationKind uint8
@@ -256,16 +257,21 @@ func normalizeOptions(opts SessionOptions) (SessionOptions, error) {
 func managedConnectionOptions(options ConnectionOptions) managedws.Options {
 	heartbeat := managedws.HeartbeatOptions{Enabled: !options.DisableHeartbeat, PingInterval: options.HeartbeatPingInterval, PongTimeout: options.HeartbeatPongTimeout, WriteTimeout: options.HeartbeatWriteTimeout}
 	reconnect := managedws.ReconnectPolicy{Enabled: !options.DisableReconnect, InitialDelay: options.ReconnectInitialDelay, MaxDelay: options.ReconnectMaxDelay, Multiplier: options.ReconnectMultiplier, Jitter: options.ReconnectJitter, MaxAttempts: options.ReconnectMaxAttempts, StableResetTime: options.StableResetTime}
+	maxAge := options.MaxConnectionAge
+	if !options.DisableRotation && maxAge == 0 {
+		maxAge = defaultConnectionMaxAge
+	}
 	return managedws.Options{
-		Heartbeat:       heartbeat,
-		Reconnect:       reconnect,
-		WriteQueue:      options.WriteQueue,
-		FrameBuffer:     options.FrameBuffer,
-		StateBuffer:     options.StateBuffer,
-		HeartbeatBuffer: options.HeartbeatBuffer,
-		ErrorBuffer:     options.ErrorBuffer,
-		ObserverBuffer:  options.ObserverBuffer,
-		Observer:        options.Observer,
+		Heartbeat:        heartbeat,
+		Reconnect:        reconnect,
+		MaxConnectionAge: maxAge,
+		WriteQueue:       options.WriteQueue,
+		FrameBuffer:      options.FrameBuffer,
+		StateBuffer:      options.StateBuffer,
+		HeartbeatBuffer:  options.HeartbeatBuffer,
+		ErrorBuffer:      options.ErrorBuffer,
+		ObserverBuffer:   options.ObserverBuffer,
+		Observer:         options.Observer,
 	}
 }
 

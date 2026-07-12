@@ -19,12 +19,7 @@ type WsAccountService struct {
 }
 
 func NewWsAccountService(apiKey, secretKey string, recvWindow ...int64) (*WsAccountService, error) {
-	conn, err := websocket.NewConnection(WsApiInitReadWriteConn, WebsocketKeepalive, WebsocketTimeoutReadWriteConnection)
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := websocket.NewClient(conn)
+	client, err := newManagedLegacyWSAPIClient()
 	if err != nil {
 		return nil, err
 	}

@@ -46,9 +46,9 @@ var (
 
 var (
 	// WebsocketTimeout is an interval for sending ping/pong messages if WebsocketKeepalive is enabled
-	WebsocketTimeout = time.Second * 600
+	WebsocketTimeout = 5 * time.Second
 	// WebsocketPongTimeout is an interval for sending a PONG frame in response to PING frame from server
-	WebsocketPongTimeout = time.Second * 10
+	WebsocketPongTimeout = 3 * time.Second
 	// WebsocketKeepalive enables sending ping/pong messages to check the connection stability
 	WebsocketKeepalive = true
 	// UseTestnet switch all the WS streams from production to the testnet

@@ -85,12 +85,7 @@ type OrderCancelWsService struct {
 
 // NewOrderCancelWsService init OrderCancelWsService
 func NewOrderCancelWsService(apiKey, secretKey string) (*OrderCancelWsService, error) {
-	conn, err := websocket.NewConnection(WsApiInitReadWriteConn, WebsocketKeepalive, WebsocketTimeoutReadWriteConnection)
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := websocket.NewClient(conn)
+	client, err := newManagedLegacyWSAPIClient()
 	if err != nil {
 		return nil, err
 	}

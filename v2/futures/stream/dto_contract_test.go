@@ -1,0 +1,34 @@
+package stream_test
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/btcnash/go-binance/v2/futures"
+	"github.com/btcnash/go-binance/v2/futures/stream"
+)
+
+func TestDepthStreamEventDataDecodesIntoSDKDTO(t *testing.T) {
+	event := stream.StreamEvent{Data: json.RawMessage(`{
+		"e":"depthUpdate",
+		"E":1628847118038,
+		"T":1628847117814,
+		"s":"BTCUSDT",
+		"U":21925649843,
+		"u":21925649849,
+		"pu":21925649651,
+		"b":[["46248.03","0.000"]],
+		"a":[["46249.88","71.870"]]
+	}`)}
+
+	var dto futures.WsDepthEvent
+	if err := json.Unmarshal(event.Data, &dto); err != nil {
+		t.Fatalf("StreamEvent.Data must decode into futures.WsDepthEvent: %v", err)
+	}
+	if len(dto.Bids) != 1 || dto.Bids[0].Price != "46248.03" || dto.Bids[0].Quantity != "0.000" {
+		t.Fatalf("bids = %#v", dto.Bids)
+	}
+	if len(dto.Asks) != 1 || dto.Asks[0].Price != "46249.88" || dto.Asks[0].Quantity != "71.870" {
+		t.Fatalf("asks = %#v", dto.Asks)
+	}
+}

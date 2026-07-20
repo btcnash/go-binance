@@ -32,3 +32,28 @@ func TestDepthStreamEventDataDecodesIntoSDKDTO(t *testing.T) {
 		t.Fatalf("asks = %#v", dto.Asks)
 	}
 }
+
+func TestContractInfoStreamEventDataDecodesIntoSDKDTO(t *testing.T) {
+	event := stream.StreamEvent{Data: json.RawMessage(`{
+		"e":"contractInfo",
+		"E":1669356423908,
+		"s":"IOTAUSDT",
+		"ct":"PERPETUAL",
+		"dt":4133404800000,
+		"ot":1569398400000,
+		"cs":"TRADING",
+		"bks":[{"bs":1,"bnf":0,"bnc":5000,"mmr":0.01,"cf":0,"mi":21,"ma":50}],
+		"st":1
+	}`)}
+
+	var dto futures.WsContractInfoEvent
+	if err := json.Unmarshal(event.Data, &dto); err != nil {
+		t.Fatalf("StreamEvent.Data must decode into futures.WsContractInfoEvent: %v", err)
+	}
+	if dto.Symbol != "IOTAUSDT" || dto.ContractState != "TRADING" || dto.SymbolType != 1 {
+		t.Fatalf("contractInfo DTO = %#v", dto)
+	}
+	if len(dto.Brackets) != 1 || dto.Brackets[0].MaxLeverage != 50 {
+		t.Fatalf("contractInfo brackets = %#v", dto.Brackets)
+	}
+}

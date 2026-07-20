@@ -1128,21 +1128,103 @@ func WsCompositiveIndexServe(symbol string, handler WsCompositeIndexHandler, err
 	return wsServe(cfg, wsHandler, errHandler)
 }
 
-// WsContractInfoEvent define websocket contract info event
+// WsContractInfoEvent define websocket contract info event.
+//
+// Binance sends one contract update per event with contract metadata at the
+// event top level. Data is retained as a compatibility mirror for callers that
+// consumed the SDK's former data-array model.
 type WsContractInfoEvent struct {
-	Event string               `json:"e"`
-	Time  int64                `json:"E"`
-	Data  []WsContractInfoData `json:"data"`
+	Event         string                  `json:"e"`
+	Time          int64                   `json:"E"`
+	Symbol        string                  `json:"s"`
+	Pair          string                  `json:"ps"`
+	ContractType  string                  `json:"ct"`
+	DeliveryDate  int64                   `json:"dt"`
+	OnboardDate   int64                   `json:"ot"`
+	ContractState string                  `json:"cs"`
+	Brackets      []WsContractInfoBracket `json:"bks,omitempty"`
+	SymbolType    int                     `json:"st"`
+
+	// Data is deprecated. Binance sends contract metadata at the event top
+	// level. During decoding, Data contains the top-level update as one item.
+	Data []WsContractInfoData `json:"-"`
 }
 
-// WsContractInfoData define contract info data
+// UnmarshalJSON decodes the current top-level Binance contractInfo protocol
+// and retains compatibility with the SDK's former data-array model.
+func (e *WsContractInfoEvent) UnmarshalJSON(payload []byte) error {
+	type wireEvent struct {
+		Event string `json:"e"`
+		Time  int64  `json:"E"`
+
+		WsContractInfoData
+
+		LegacyData []WsContractInfoData `json:"data"`
+	}
+
+	var wire wireEvent
+	if err := json.Unmarshal(payload, &wire); err != nil {
+		return err
+	}
+
+	*e = WsContractInfoEvent{
+		Event:         wire.Event,
+		Time:          wire.Time,
+		Symbol:        wire.Symbol,
+		Pair:          wire.Pair,
+		ContractType:  wire.ContractType,
+		DeliveryDate:  wire.DeliveryDate,
+		OnboardDate:   wire.OnboardDate,
+		ContractState: wire.ContractState,
+		Brackets:      wire.Brackets,
+		SymbolType:    wire.SymbolType,
+	}
+
+	if wire.Symbol != "" {
+		e.Data = []WsContractInfoData{wire.WsContractInfoData}
+		return nil
+	}
+
+	if len(wire.LegacyData) == 0 {
+		return nil
+	}
+
+	e.Data = append([]WsContractInfoData(nil), wire.LegacyData...)
+	if len(wire.LegacyData) == 1 {
+		legacy := wire.LegacyData[0]
+		e.Symbol = legacy.Symbol
+		e.Pair = legacy.Pair
+		e.ContractType = legacy.ContractType
+		e.DeliveryDate = legacy.DeliveryDate
+		e.OnboardDate = legacy.OnboardDate
+		e.ContractState = legacy.ContractState
+		e.Brackets = legacy.Brackets
+		e.SymbolType = legacy.SymbolType
+	}
+	return nil
+}
+
+// WsContractInfoData define contract info data.
 type WsContractInfoData struct {
-	Symbol        string `json:"s"`
-	Pair          string `json:"ps"`
-	ContractType  string `json:"ct"`
-	DeliveryDate  int64  `json:"dt"`
-	OnboardDate   int64  `json:"ot"`
-	ContractState string `json:"cs"`
+	Symbol        string                  `json:"s"`
+	Pair          string                  `json:"ps"`
+	ContractType  string                  `json:"ct"`
+	DeliveryDate  int64                   `json:"dt"`
+	OnboardDate   int64                   `json:"ot"`
+	ContractState string                  `json:"cs"`
+	Brackets      []WsContractInfoBracket `json:"bks,omitempty"`
+	SymbolType    int                     `json:"st"`
+}
+
+// WsContractInfoBracket define one contract leverage bracket update.
+type WsContractInfoBracket struct {
+	Bracket          int     `json:"bs"`
+	NotionalFloor    float64 `json:"bnf"`
+	NotionalCap      float64 `json:"bnc"`
+	MaintMarginRatio float64 `json:"mmr"`
+	Cum              float64 `json:"cf"`
+	MinLeverage      int     `json:"mi"`
+	MaxLeverage      int     `json:"ma"`
 }
 
 // WsContractInfoHandler handle WsContractInfoEvent

@@ -13,8 +13,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/btcnash/go-binance/v2/common"
 	"github.com/bitly/go-simplejson"
+	"github.com/btcnash/go-binance/v2/common"
 )
 
 // SideType define side type of order

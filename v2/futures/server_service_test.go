@@ -105,3 +105,30 @@ func (s *serverServiceTestSuite) TestSetServerTime() {
 	s.r().NotZero(s.client.TimeOffset)
 	s.r().EqualValues(timeOffset, s.client.TimeOffset)
 }
+
+func (s *serverServiceTestSuite) TestAPIErrorPreservesHTTPResponseMetadata() {
+	response := newHTTPResponse([]byte(`{
+        "code": -1007,
+        "msg": "Timeout waiting for response from backend server. Send status unknown; execution status unknown."
+    }`), http.StatusServiceUnavailable)
+	response.Header = http.Header{
+		"X-Mbx-Used-Weight-1m":  []string{"123"},
+		"X-Mbx-Order-Count-10s": []string{"7"},
+	}
+
+	s.client.Client.do = s.client.do
+	s.client.On("do", anyHTTPRequest()).Return(response, nil)
+	defer s.assertDo()
+
+	_, err := s.client.NewServerTimeService().Do(newContext())
+	s.r().Error(err)
+
+	apiErr, ok := err.(*common.APIError)
+	s.r().True(ok)
+	s.r().Equal(http.StatusServiceUnavailable, apiErr.StatusCode)
+	s.r().Equal("123", apiErr.Header.Get("X-MBX-USED-WEIGHT-1M"))
+	s.r().Equal("7", apiErr.Header.Get("X-MBX-ORDER-COUNT-10S"))
+
+	response.Header.Set("X-MBX-USED-WEIGHT-1M", "999")
+	s.r().Equal("123", apiErr.Header.Get("X-MBX-USED-WEIGHT-1M"))
+}

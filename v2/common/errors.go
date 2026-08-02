@@ -2,13 +2,16 @@ package common
 
 import (
 	"fmt"
+	"net/http"
 )
 
 // APIError define API error when response status is 4xx or 5xx
 type APIError struct {
-	Code     int64  `json:"code"`
-	Message  string `json:"msg"`
-	Response []byte `json:"-"` // Assign the body value when the Code and Message fields are invalid.
+	Code       int64       `json:"code"`
+	Message    string      `json:"msg"`
+	Response   []byte      `json:"-"` // Assign the body value when the Code and Message fields are invalid.
+	StatusCode int         `json:"-"`
+	Header     http.Header `json:"-"`
 }
 
 // Error return error code and message

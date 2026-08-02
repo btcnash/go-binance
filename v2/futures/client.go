@@ -402,6 +402,8 @@ func (c *Client) callAPI(ctx context.Context, r *request, opts ...RequestOption)
 		if !apiErr.IsValid() {
 			apiErr.Response = data
 		}
+		apiErr.StatusCode = res.StatusCode
+		apiErr.Header = res.Header.Clone()
 		return nil, &res.Header, apiErr
 	}
 	return data, &res.Header, nil

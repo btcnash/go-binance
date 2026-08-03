@@ -10,13 +10,13 @@ import (
 
 // AlgoOrderCancelWsRequest contains parameters for algoOrder.cancel.
 type AlgoOrderCancelWsRequest struct {
-	algoID       *int64
+	algoID       *AlgoOrderID
 	clientAlgoID *string
 	recvWindow   *int64
 }
 
 func NewAlgoOrderCancelWsRequest() *AlgoOrderCancelWsRequest { return &AlgoOrderCancelWsRequest{} }
-func (r *AlgoOrderCancelWsRequest) AlgoID(value int64) *AlgoOrderCancelWsRequest {
+func (r *AlgoOrderCancelWsRequest) AlgoID(value AlgoOrderID) *AlgoOrderCancelWsRequest {
 	r.algoID = &value
 	return r
 }
@@ -59,10 +59,10 @@ func (r *AlgoOrderCancelWsRequest) buildParams() params {
 
 // CancelAlgoOrderResult is the typed result returned by algoOrder.cancel.
 type CancelAlgoOrderResult struct {
-	AlgoId       int64  `json:"algoId"`
-	ClientAlgoId string `json:"clientAlgoId"`
-	Code         string `json:"code"`
-	Message      string `json:"msg"`
+	AlgoId       AlgoOrderID `json:"algoId"`
+	ClientAlgoId string      `json:"clientAlgoId"`
+	Code         string      `json:"code"`
+	Message      string      `json:"msg"`
 }
 
 type CancelAlgoOrderWsResponse struct {

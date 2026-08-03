@@ -47,16 +47,16 @@ type CreateAlgoOrderService struct {
 	_type                   AlgoOrderType // required
 	positionSide            *PositionSideType
 	timeInForceType         *TimeInForceType
-	quantity                *string // Cannot be sent with closePosition=true(Close-All)
-	price                   *string
-	triggerPrice            *string
+	quantity                *Decimal // Cannot be sent with closePosition=true(Close-All)
+	price                   *Decimal
+	triggerPrice            *Decimal
 	workingType             *WorkingType
 	priceMatch              *PriceMatchType
 	closePosition           *bool
 	priceProtect            *bool
 	reduceOnly              *bool
-	activatePrice           *string
-	callbackRate            *string
+	activatePrice           *Decimal
+	callbackRate            *Decimal
 	clientAlgoId            *string
 	selfTradePreventionMode *SelfTradePreventionMode
 	goodTillDate            *int64
@@ -118,23 +118,23 @@ func (s *CreateAlgoOrderService) TimeInForce(timeInForceType TimeInForceType) *C
 }
 
 // Quantity sets the order quantity.
-func (s *CreateAlgoOrderService) Quantity(quantity string) *CreateAlgoOrderService {
+func (s *CreateAlgoOrderService) Quantity(quantity Decimal) *CreateAlgoOrderService {
 	s.quantity = &quantity
-	s.param["quantity"] = quantity
+	s.param["quantity"] = quantity.CanonicalString()
 	return s
 }
 
 // Price sets the order price.
-func (s *CreateAlgoOrderService) Price(price string) *CreateAlgoOrderService {
+func (s *CreateAlgoOrderService) Price(price Decimal) *CreateAlgoOrderService {
 	s.price = &price
-	s.param["price"] = price
+	s.param["price"] = price.CanonicalString()
 	return s
 }
 
 // TriggerPrice sets the trigger price.
-func (s *CreateAlgoOrderService) TriggerPrice(triggerPrice string) *CreateAlgoOrderService {
+func (s *CreateAlgoOrderService) TriggerPrice(triggerPrice Decimal) *CreateAlgoOrderService {
 	s.triggerPrice = &triggerPrice
-	s.param["triggerPrice"] = triggerPrice
+	s.param["triggerPrice"] = triggerPrice.CanonicalString()
 	return s
 }
 
@@ -187,24 +187,20 @@ func (s *CreateAlgoOrderService) ReduceOnly(reduceOnly bool) *CreateAlgoOrderSer
 
 // ActivationPrice sets the activation price for trailing stop orders.
 // deprecated, use ActivatePrice instead
-func (s *CreateAlgoOrderService) ActivationPrice(activationPrice string) *CreateAlgoOrderService {
+func (s *CreateAlgoOrderService) ActivationPrice(activationPrice Decimal) *CreateAlgoOrderService {
 	return s.ActivatePrice(activationPrice)
 }
 
-func (s *CreateAlgoOrderService) ActivatePrice(activatePrice string) *CreateAlgoOrderService {
+func (s *CreateAlgoOrderService) ActivatePrice(activatePrice Decimal) *CreateAlgoOrderService {
 	s.activatePrice = &activatePrice
-	if activatePrice != "" {
-		s.param["activatePrice"] = activatePrice
-	}
+	s.param["activatePrice"] = activatePrice.CanonicalString()
 	return s
 }
 
 // CallbackRate sets the callback rate for trailing stop orders.
-func (s *CreateAlgoOrderService) CallbackRate(callbackRate string) *CreateAlgoOrderService {
+func (s *CreateAlgoOrderService) CallbackRate(callbackRate Decimal) *CreateAlgoOrderService {
 	s.callbackRate = &callbackRate
-	if callbackRate != "" {
-		s.param["callbackRate"] = callbackRate
-	}
+	s.param["callbackRate"] = callbackRate.CanonicalString()
 	return s
 }
 
@@ -237,7 +233,7 @@ func (s *CreateAlgoOrderService) GoodTillDate(goodTillDate int64) *CreateAlgoOrd
 
 // CreateAlgoOrderResp represents the response from creating an algorithmic order.
 type CreateAlgoOrderResp struct {
-	AlgoId                  int64                   `json:"algoId"`
+	AlgoId                  AlgoOrderID             `json:"algoId"`
 	ClientAlgoId            string                  `json:"clientAlgoId"`
 	AlgoType                OrderAlgoType           `json:"algoType"`
 	OrderType               AlgoOrderType           `json:"orderType"`
@@ -245,19 +241,19 @@ type CreateAlgoOrderResp struct {
 	Side                    SideType                `json:"side"`
 	PositionSide            PositionSideType        `json:"positionSide"`
 	TimeInForce             TimeInForceType         `json:"timeInForce"`
-	Quantity                string                  `json:"quantity"`
+	Quantity                Decimal                 `json:"quantity"`
 	AlgoStatus              AlgoOrderStatusType     `json:"algoStatus"`
-	TriggerPrice            string                  `json:"triggerPrice"`
-	Price                   string                  `json:"price"`
-	IcebergQuantity         *int64                  `json:"icebergQuantity,omitempty"`
+	TriggerPrice            Decimal                 `json:"triggerPrice"`
+	Price                   Decimal                 `json:"price"`
+	IcebergQuantity         OptionalDecimal         `json:"icebergQuantity"`
 	SelfTradePreventionMode SelfTradePreventionMode `json:"selfTradePreventionMode"`
 	WorkingType             WorkingType             `json:"workingType"`
 	PriceMatch              PriceMatchType          `json:"priceMatch"`
 	ClosePosition           bool                    `json:"closePosition"`
 	PriceProtect            bool                    `json:"priceProtect"`
 	ReduceOnly              bool                    `json:"reduceOnly"`
-	ActivatePrice           string                  `json:"activatePrice"`
-	CallbackRate            string                  `json:"callbackRate"`
+	ActivatePrice           OptionalDecimal         `json:"activatePrice"`
+	CallbackRate            OptionalDecimal         `json:"callbackRate"`
 	CreateTime              int64                   `json:"createTime"`
 	UpdateTime              int64                   `json:"updateTime"`
 	TriggerTime             int64                   `json:"triggerTime"`
@@ -287,13 +283,13 @@ func (s *CreateAlgoOrderService) Do(ctx context.Context, opts ...RequestOption) 
 // CancelAlgoOrderService cancels an algorithmic order.
 type CancelAlgoOrderService struct {
 	c            *Client
-	algoID       int64
+	algoID       *AlgoOrderID
 	clientAlgoID *string
 }
 
 // AlgoID sets the algorithmic order ID.
-func (s *CancelAlgoOrderService) AlgoID(algoID int64) *CancelAlgoOrderService {
-	s.algoID = algoID
+func (s *CancelAlgoOrderService) AlgoID(algoID AlgoOrderID) *CancelAlgoOrderService {
+	s.algoID = &algoID
 	return s
 }
 
@@ -305,10 +301,10 @@ func (s *CancelAlgoOrderService) ClientAlgoID(clientAlgoID string) *CancelAlgoOr
 
 // CancelAlgoOrderResp represents the response from canceling an algorithmic order.
 type CancelAlgoOrderResp struct {
-	AlgoId       int    `json:"algoId"`
-	ClientAlgoId string `json:"clientAlgoId"`
-	Code         string `json:"code"`
-	Message      string `json:"msg"`
+	AlgoId       AlgoOrderID `json:"algoId"`
+	ClientAlgoId string      `json:"clientAlgoId"`
+	Code         string      `json:"code"`
+	Message      string      `json:"msg"`
 }
 
 // Do sends the request to cancel an algorithmic order.
@@ -319,8 +315,11 @@ func (s *CancelAlgoOrderService) Do(ctx context.Context, opts ...RequestOption) 
 		secType:  secTypeSigned,
 	}
 	param := map[string]any{}
-	if s.algoID != 0 {
-		param["algoId"] = s.algoID
+	if s.algoID != nil {
+		if !s.algoID.Valid() {
+			return nil, ErrAlgoOrderIDInvalid
+		}
+		param["algoId"] = *s.algoID
 	}
 	if s.clientAlgoID != nil {
 		param["clientAlgoId"] = *s.clientAlgoID
@@ -384,12 +383,12 @@ func (s *CancelAllAlgoOpenOrdersService) Do(ctx context.Context, opts ...Request
 // GetAlgoOrderService gets an algorithmic order.
 type GetAlgoOrderService struct {
 	c            *Client
-	algoId       *int64
+	algoId       *AlgoOrderID
 	clientAlgoId *string
 }
 
 // AlgoID sets the algorithmic order ID.
-func (s *GetAlgoOrderService) AlgoID(algoId int64) *GetAlgoOrderService {
+func (s *GetAlgoOrderService) AlgoID(algoId AlgoOrderID) *GetAlgoOrderService {
 	s.algoId = &algoId
 	return s
 }
@@ -402,7 +401,7 @@ func (s *GetAlgoOrderService) ClientAlgoID(clientAlgoId string) *GetAlgoOrderSer
 
 // GetAlgoOrderResp represents the response from getting an algorithmic order.
 type GetAlgoOrderResp struct {
-	AlgoId                  int64                   `json:"algoId"`
+	AlgoId                  AlgoOrderID             `json:"algoId"`
 	ClientAlgoId            string                  `json:"clientAlgoId"`
 	AlgoType                OrderAlgoType           `json:"algoType"`
 	OrderType               AlgoOrderType           `json:"orderType"`
@@ -410,17 +409,22 @@ type GetAlgoOrderResp struct {
 	Side                    SideType                `json:"side"`
 	PositionSide            PositionSideType        `json:"positionSide"`
 	TimeInForce             TimeInForceType         `json:"timeInForce"`
-	Quantity                string                  `json:"quantity"`
+	Quantity                Decimal                 `json:"quantity"`
 	AlgoStatus              AlgoOrderStatusType     `json:"algoStatus"`
-	ActualOrderId           string                  `json:"actualOrderId"`
-	ActualPrice             string                  `json:"actualPrice"`
-	TriggerPrice            string                  `json:"triggerPrice"`
-	Price                   string                  `json:"price"`
-	IcebergQuantity         *int64                  `json:"icebergQuantity,omitempty"`
-	TpTriggerPrice          string                  `json:"tpTriggerPrice"`
-	TpPrice                 string                  `json:"tpPrice"`
-	SlTriggerPrice          string                  `json:"slTriggerPrice"`
-	SlPrice                 string                  `json:"slPrice"`
+	ActualOrderId           OptionalOrderID         `json:"actualOrderId"`
+	ActualPrice             OptionalDecimal         `json:"actualPrice"`
+	ActualQty               OptionalDecimal         `json:"actualQty"`
+	ExecutedQty             OptionalDecimal         `json:"executedQty"`
+	AvgPrice                OptionalDecimal         `json:"avgPrice"`
+	TriggerPrice            Decimal                 `json:"triggerPrice"`
+	Price                   Decimal                 `json:"price"`
+	IcebergQuantity         OptionalDecimal         `json:"icebergQuantity"`
+	TpTriggerPrice          OptionalDecimal         `json:"tpTriggerPrice"`
+	TpPrice                 OptionalDecimal         `json:"tpPrice"`
+	SlTriggerPrice          OptionalDecimal         `json:"slTriggerPrice"`
+	SlPrice                 OptionalDecimal         `json:"slPrice"`
+	ActivatePrice           OptionalDecimal         `json:"activatePrice"`
+	CallbackRate            OptionalDecimal         `json:"callbackRate"`
 	TpOrderType             string                  `json:"tpOrderType"`
 	SelfTradePreventionMode SelfTradePreventionMode `json:"selfTradePreventionMode"`
 	WorkingType             WorkingType             `json:"workingType"`
@@ -442,6 +446,9 @@ func (s *GetAlgoOrderService) Do(ctx context.Context, opts ...RequestOption) (*G
 		secType:  secTypeSigned,
 	}
 	if s.algoId != nil {
+		if !s.algoId.Valid() {
+			return nil, ErrAlgoOrderIDInvalid
+		}
 		r.setParam("algoId", *s.algoId)
 	}
 	if s.clientAlgoId != nil {
@@ -464,7 +471,7 @@ type ListOpenAlgoOrdersService struct {
 	c        *Client
 	algoType *OrderAlgoType
 	symbol   *string
-	algoId   *int64
+	algoId   *AlgoOrderID
 }
 
 // AlgoType sets the algorithmic order type.
@@ -480,7 +487,7 @@ func (s *ListOpenAlgoOrdersService) Symbol(symbol string) *ListOpenAlgoOrdersSer
 }
 
 // AlgoID sets the algorithmic order ID.
-func (s *ListOpenAlgoOrdersService) AlgoID(algoId int64) *ListOpenAlgoOrdersService {
+func (s *ListOpenAlgoOrdersService) AlgoID(algoId AlgoOrderID) *ListOpenAlgoOrdersService {
 	s.algoId = &algoId
 	return s
 }
@@ -499,6 +506,9 @@ func (s *ListOpenAlgoOrdersService) Do(ctx context.Context, opts ...RequestOptio
 		r.setParam("symbol", *s.symbol)
 	}
 	if s.algoId != nil {
+		if !s.algoId.Valid() {
+			return nil, ErrAlgoOrderIDInvalid
+		}
 		r.setParam("algoId", *s.algoId)
 	}
 	data, _, err := s.c.callAPI(ctx, r, opts...)
@@ -517,7 +527,7 @@ func (s *ListOpenAlgoOrdersService) Do(ctx context.Context, opts ...RequestOptio
 type ListAllAlgoOrdersService struct {
 	c         *Client
 	symbol    string // required
-	algoId    *int64
+	algoId    *AlgoOrderID
 	startTime *int64
 	endTime   *int64
 	page      *int
@@ -531,7 +541,7 @@ func (s *ListAllAlgoOrdersService) Symbol(symbol string) *ListAllAlgoOrdersServi
 }
 
 // AlgoID sets the algorithmic order ID.
-func (s *ListAllAlgoOrdersService) AlgoID(algoId int64) *ListAllAlgoOrdersService {
+func (s *ListAllAlgoOrdersService) AlgoID(algoId AlgoOrderID) *ListAllAlgoOrdersService {
 	s.algoId = &algoId
 	return s
 }
@@ -569,6 +579,9 @@ func (s *ListAllAlgoOrdersService) Do(ctx context.Context, opts ...RequestOption
 	}
 	r.setParam("symbol", s.symbol)
 	if s.algoId != nil {
+		if !s.algoId.Valid() {
+			return nil, ErrAlgoOrderIDInvalid
+		}
 		r.setParam("algoId", *s.algoId)
 	}
 	if s.startTime != nil {

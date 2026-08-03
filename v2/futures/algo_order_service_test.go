@@ -57,9 +57,9 @@ func (s *algoOrderServiceTestSuite) TestCreateAlgoOrderService() {
 		Symbol("BNBUSDT").
 		Side(SideTypeSell).
 		Type(AlgoOrderTypeTakeProfit).
-		Quantity("0.01").
-		Price("750.000").
-		TriggerPrice("750.000").
+		Quantity(MustParseDecimal("0.01")).
+		Price(MustParseDecimal("750.000")).
+		TriggerPrice(MustParseDecimal("750.000")).
 		Do(newContext())
 
 	// verify response
@@ -73,19 +73,19 @@ func (s *algoOrderServiceTestSuite) TestCreateAlgoOrderService() {
 		Side:                    SideTypeSell,
 		PositionSide:            PositionSideTypeBoth,
 		TimeInForce:             TimeInForceTypeGTC,
-		Quantity:                "0.01",
+		Quantity:                MustParseDecimal("0.01"),
 		AlgoStatus:              AlgoOrderStatusTypeNew,
-		TriggerPrice:            "750.000",
-		Price:                   "750.000",
-		IcebergQuantity:         nil,
+		TriggerPrice:            MustParseDecimal("750.000"),
+		Price:                   MustParseDecimal("750.000"),
+		IcebergQuantity:         OptionalDecimal{},
 		SelfTradePreventionMode: SelfTradePreventionModeExpireMaker,
 		WorkingType:             WorkingTypeContractPrice,
 		PriceMatch:              PriceMatchTypeNone,
 		ClosePosition:           false,
 		PriceProtect:            false,
 		ReduceOnly:              false,
-		ActivatePrice:           "",
-		CallbackRate:            "",
+		ActivatePrice:           OptionalDecimal{},
+		CallbackRate:            OptionalDecimal{},
 		CreateTime:              1750485492076,
 		UpdateTime:              1750485492076,
 		TriggerTime:             0,
@@ -112,9 +112,9 @@ func (s *algoOrderServiceTestSuite) TestCreateAlgoOrderServiceError() {
 		Symbol("INVALID_SYMBOL").
 		Side(SideTypeSell).
 		Type(AlgoOrderTypeTakeProfit).
-		Quantity("0.01").
-		Price("750.000").
-		TriggerPrice("750.000").
+		Quantity(MustParseDecimal("0.01")).
+		Price(MustParseDecimal("750.000")).
+		TriggerPrice(MustParseDecimal("750.000")).
 		Do(newContext())
 
 	// verify response
@@ -275,17 +275,17 @@ func (s *algoOrderServiceTestSuite) TestGetAlgoOrderService() {
 		Side:                    SideTypeSell,
 		PositionSide:            PositionSideTypeBoth,
 		TimeInForce:             TimeInForceTypeGTC,
-		Quantity:                "0.01",
+		Quantity:                MustParseDecimal("0.01"),
 		AlgoStatus:              AlgoOrderStatusTypeCanceled,
-		ActualOrderId:           "",
-		ActualPrice:             "0.00000",
-		TriggerPrice:            "750.000",
-		Price:                   "750.000",
-		IcebergQuantity:         nil,
-		TpTriggerPrice:          "0.000",
-		TpPrice:                 "0.000",
-		SlTriggerPrice:          "0.000",
-		SlPrice:                 "0.000",
+		ActualOrderId:           OptionalOrderID{},
+		ActualPrice:             NewOptionalDecimal(MustParseDecimal("0.00000")),
+		TriggerPrice:            MustParseDecimal("750.000"),
+		Price:                   MustParseDecimal("750.000"),
+		IcebergQuantity:         OptionalDecimal{},
+		TpTriggerPrice:          NewOptionalDecimal(MustParseDecimal("0.000")),
+		TpPrice:                 NewOptionalDecimal(MustParseDecimal("0.000")),
+		SlTriggerPrice:          NewOptionalDecimal(MustParseDecimal("0.000")),
+		SlPrice:                 NewOptionalDecimal(MustParseDecimal("0.000")),
 		TpOrderType:             "",
 		SelfTradePreventionMode: SelfTradePreventionModeExpireMaker,
 		WorkingType:             WorkingTypeContractPrice,
@@ -339,6 +339,9 @@ func (s *algoOrderServiceTestSuite) assertGetAlgoOrderRespEqual(e, a *GetAlgoOrd
 	r.Equal(e.AlgoStatus, a.AlgoStatus, "AlgoStatus")
 	r.Equal(e.ActualOrderId, a.ActualOrderId, "ActualOrderId")
 	r.Equal(e.ActualPrice, a.ActualPrice, "ActualPrice")
+	r.Equal(e.ActualQty, a.ActualQty, "ActualQty")
+	r.Equal(e.ExecutedQty, a.ExecutedQty, "ExecutedQty")
+	r.Equal(e.AvgPrice, a.AvgPrice, "AvgPrice")
 	r.Equal(e.TriggerPrice, a.TriggerPrice, "TriggerPrice")
 	r.Equal(e.Price, a.Price, "Price")
 	r.Equal(e.IcebergQuantity, a.IcebergQuantity, "IcebergQuantity")
@@ -346,6 +349,8 @@ func (s *algoOrderServiceTestSuite) assertGetAlgoOrderRespEqual(e, a *GetAlgoOrd
 	r.Equal(e.TpPrice, a.TpPrice, "TpPrice")
 	r.Equal(e.SlTriggerPrice, a.SlTriggerPrice, "SlTriggerPrice")
 	r.Equal(e.SlPrice, a.SlPrice, "SlPrice")
+	r.Equal(e.ActivatePrice, a.ActivatePrice, "ActivatePrice")
+	r.Equal(e.CallbackRate, a.CallbackRate, "CallbackRate")
 	r.Equal(e.TpOrderType, a.TpOrderType, "TpOrderType")
 	r.Equal(e.SelfTradePreventionMode, a.SelfTradePreventionMode, "SelfTradePreventionMode")
 	r.Equal(e.WorkingType, a.WorkingType, "WorkingType")
@@ -418,17 +423,17 @@ func (s *algoOrderServiceTestSuite) TestGetOpenAlgoOrdersService() {
 		Side:                    SideTypeSell,
 		PositionSide:            PositionSideTypeBoth,
 		TimeInForce:             TimeInForceTypeGTC,
-		Quantity:                "0.01",
+		Quantity:                MustParseDecimal("0.01"),
 		AlgoStatus:              AlgoOrderStatusTypeNew,
-		ActualOrderId:           "",
-		ActualPrice:             "0.00000",
-		TriggerPrice:            "750.000",
-		Price:                   "750.000",
-		IcebergQuantity:         nil,
-		TpTriggerPrice:          "0.000",
-		TpPrice:                 "0.000",
-		SlTriggerPrice:          "0.000",
-		SlPrice:                 "0.000",
+		ActualOrderId:           OptionalOrderID{},
+		ActualPrice:             NewOptionalDecimal(MustParseDecimal("0.00000")),
+		TriggerPrice:            MustParseDecimal("750.000"),
+		Price:                   MustParseDecimal("750.000"),
+		IcebergQuantity:         OptionalDecimal{},
+		TpTriggerPrice:          NewOptionalDecimal(MustParseDecimal("0.000")),
+		TpPrice:                 NewOptionalDecimal(MustParseDecimal("0.000")),
+		SlTriggerPrice:          NewOptionalDecimal(MustParseDecimal("0.000")),
+		SlPrice:                 NewOptionalDecimal(MustParseDecimal("0.000")),
 		TpOrderType:             "",
 		SelfTradePreventionMode: SelfTradePreventionModeExpireMaker,
 		WorkingType:             WorkingTypeContractPrice,
@@ -526,17 +531,17 @@ func (s *algoOrderServiceTestSuite) TestGetAllAlgoOrdersService() {
 		Side:                    SideTypeSell,
 		PositionSide:            PositionSideTypeBoth,
 		TimeInForce:             TimeInForceTypeGTC,
-		Quantity:                "0.01",
+		Quantity:                MustParseDecimal("0.01"),
 		AlgoStatus:              AlgoOrderStatusTypeCanceled,
-		ActualOrderId:           "",
-		ActualPrice:             "0.00000",
-		TriggerPrice:            "750.000",
-		Price:                   "750.000",
-		IcebergQuantity:         nil,
-		TpTriggerPrice:          "0.000",
-		TpPrice:                 "0.000",
-		SlTriggerPrice:          "0.000",
-		SlPrice:                 "0.000",
+		ActualOrderId:           OptionalOrderID{},
+		ActualPrice:             NewOptionalDecimal(MustParseDecimal("0.00000")),
+		TriggerPrice:            MustParseDecimal("750.000"),
+		Price:                   MustParseDecimal("750.000"),
+		IcebergQuantity:         OptionalDecimal{},
+		TpTriggerPrice:          NewOptionalDecimal(MustParseDecimal("0.000")),
+		TpPrice:                 NewOptionalDecimal(MustParseDecimal("0.000")),
+		SlTriggerPrice:          NewOptionalDecimal(MustParseDecimal("0.000")),
+		SlPrice:                 NewOptionalDecimal(MustParseDecimal("0.000")),
 		TpOrderType:             "",
 		SelfTradePreventionMode: SelfTradePreventionModeExpireMaker,
 		WorkingType:             WorkingTypeContractPrice,

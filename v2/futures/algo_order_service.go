@@ -11,12 +11,13 @@ import (
 type AlgoOrderStatusType string
 
 const (
-	AlgoOrderStatusTypeNew AlgoOrderStatusType = "NEW"
-	// AlgoOrderStatusTypePartiallyFilled AlgoOrderStatusType = "PARTIALLY_FILLED"
-	// AlgoOrderStatusTypeFilled          AlgoOrderStatusType = "FILLED"
-	AlgoOrderStatusTypeCanceled AlgoOrderStatusType = "CANCELED"
-	AlgoOrderStatusTypeRejected AlgoOrderStatusType = "REJECTED"
-	AlgoOrderStatusTypeExpired  AlgoOrderStatusType = "EXPIRED"
+	AlgoOrderStatusTypeNew        AlgoOrderStatusType = "NEW"
+	AlgoOrderStatusTypeTriggering AlgoOrderStatusType = "TRIGGERING"
+	AlgoOrderStatusTypeTriggered  AlgoOrderStatusType = "TRIGGERED"
+	AlgoOrderStatusTypeFinished   AlgoOrderStatusType = "FINISHED"
+	AlgoOrderStatusTypeCanceled   AlgoOrderStatusType = "CANCELED"
+	AlgoOrderStatusTypeRejected   AlgoOrderStatusType = "REJECTED"
+	AlgoOrderStatusTypeExpired    AlgoOrderStatusType = "EXPIRED"
 )
 
 // OrderAlgoType defines the algorithmic order type.

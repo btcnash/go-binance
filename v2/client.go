@@ -1501,3 +1501,15 @@ func (c *Client) NewSorOrderPlaceWsService() (*SorOrderPlaceWsService, error) {
 func (c *Client) NewSorOrderTestWsService() (*SorOrderTestWsService, error) {
 	return NewSorOrderTestWsService(c.APIKey, c.SecretKey)
 }
+
+// NewAlgoOrderPlaceWsService initializes the USDⓈ-M Futures Algo WSAPI placement service.
+// Deprecated: use futures.Client.NewAlgoOrderPlaceWsService.
+func (c *Client) NewAlgoOrderPlaceWsService() (*AlgoOrderPlaceWsService, error) {
+	return NewAlgoOrderPlaceWsService(c.APIKey, c.SecretKey)
+}
+
+// NewAlgoOrderCancelWsService initializes the USDⓈ-M Futures Algo WSAPI cancellation service.
+// Deprecated: use futures.Client.NewAlgoOrderCancelWsService.
+func (c *Client) NewAlgoOrderCancelWsService() (*AlgoOrderCancelWsService, error) {
+	return NewAlgoOrderCancelWsService(c.APIKey, c.SecretKey)
+}

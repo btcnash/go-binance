@@ -74,6 +74,12 @@ const (
 
 	// OrderStatusFuturesWsApiMethod define method for query order via websocket API
 	OrderStatusFuturesWsApiMethod WsApiMethodType = "order.status"
+
+	// AlgoOrderPlaceFuturesWsApiMethod defines Algo order placement via USDⓈ-M Futures WSAPI.
+	AlgoOrderPlaceFuturesWsApiMethod WsApiMethodType = "algoOrder.place"
+
+	// AlgoOrderCancelFuturesWsApiMethod defines Algo order cancellation via USDⓈ-M Futures WSAPI.
+	AlgoOrderCancelFuturesWsApiMethod WsApiMethodType = "algoOrder.cancel"
 )
 
 var (

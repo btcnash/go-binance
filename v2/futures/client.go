@@ -801,3 +801,13 @@ func (c *Client) NewListOpenAlgoOrdersService() *ListOpenAlgoOrdersService {
 func (c *Client) NewListAllAlgoOrdersService() *ListAllAlgoOrdersService {
 	return &ListAllAlgoOrdersService{c: c}
 }
+
+// NewAlgoOrderPlaceWsService initializes the USDⓈ-M Futures Algo WSAPI placement service.
+func (c *Client) NewAlgoOrderPlaceWsService() (*AlgoOrderPlaceWsService, error) {
+	return NewAlgoOrderPlaceWsService(c.APIKey, c.SecretKey)
+}
+
+// NewAlgoOrderCancelWsService initializes the USDⓈ-M Futures Algo WSAPI cancellation service.
+func (c *Client) NewAlgoOrderCancelWsService() (*AlgoOrderCancelWsService, error) {
+	return NewAlgoOrderCancelWsService(c.APIKey, c.SecretKey)
+}

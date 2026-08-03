@@ -21,9 +21,9 @@ func TestAlgoOrderPlaceWsRequestBuildsOfficialContract(t *testing.T) {
 		Type(futures.AlgoOrderTypeStop).
 		PositionSide(futures.PositionSideTypeBoth).
 		TimeInForce(futures.TimeInForceTypeGTD).
-		Quantity(futures.MustParseDecimal("0.001")).
-		Price(futures.MustParseDecimal("60000")).
-		TriggerPrice(futures.MustParseDecimal("59000")).
+		Quantity("0.001").
+		Price("60000").
+		TriggerPrice("59000").
 		WorkingType(futures.WorkingTypeMarkPrice).
 		ReduceOnly(true).
 		ClientAlgoID("algo-client-1").
@@ -71,9 +71,9 @@ func TestFuturesAlgoOrderPlaceWsRequestDefaultsToAckAndOmitsUnsetTriggerPrice(t 
 		Symbol("BTCUSDT").
 		Side(futures.SideTypeSell).
 		Type(futures.AlgoOrderTypeTrailingStopMarket).
-		Quantity(futures.MustParseDecimal("0.001")).
-		ActivatePrice(futures.MustParseDecimal("58000")).
-		CallbackRate(futures.MustParseDecimal("1"))
+		Quantity("0.001").
+		ActivatePrice("58000").
+		CallbackRate("1")
 
 	if err := req.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
@@ -95,8 +95,8 @@ func TestLegacyTopLevelAlgoOrderPlaceWsRequestPreservesResultDefault(t *testing.
 		Symbol("BTCUSDT").
 		Side(futures.SideTypeSell).
 		Type(futures.AlgoOrderTypeTrailingStopMarket).
-		Quantity(futures.MustParseDecimal("0.001")).
-		CallbackRate(futures.MustParseDecimal("1"))
+		Quantity("0.001").
+		CallbackRate("1")
 
 	if err := req.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
@@ -111,8 +111,8 @@ func TestDeprecatedNewClientOrderIDPreservesLegacyPrecedence(t *testing.T) {
 		Symbol("BTCUSDT").
 		Side(futures.SideTypeSell).
 		Type(futures.AlgoOrderTypeTrailingStopMarket).
-		Quantity(futures.MustParseDecimal("0.001")).
-		CallbackRate(futures.MustParseDecimal("1")).
+		Quantity("0.001").
+		CallbackRate("1").
 		ClientAlgoID("preferred-client-id").
 		NewClientOrderID("legacy-client-id")
 
@@ -129,7 +129,7 @@ func TestAlgoOrderPlaceWsRequestSupportsMarketProtectionParameters(t *testing.T)
 		Symbol("BTCUSDT").
 		Side(futures.SideTypeSell).
 		Type(futures.AlgoOrderTypeStopMarket).
-		TriggerPrice(futures.MustParseDecimal("59000")).
+		TriggerPrice("59000").
 		ClosePosition(true).
 		PriceProtect(true)
 
@@ -150,8 +150,8 @@ func TestAlgoOrderPlaceWsRequestSupportsPriceMatchWithoutPrice(t *testing.T) {
 		Symbol("BTCUSDT").
 		Side(futures.SideTypeBuy).
 		Type(futures.AlgoOrderTypeStop).
-		Quantity(futures.MustParseDecimal("0.001")).
-		TriggerPrice(futures.MustParseDecimal("59000")).
+		Quantity("0.001").
+		TriggerPrice("59000").
 		PriceMatch(futures.PriceMatchTypeOpponent)
 
 	if err := req.Validate(); err != nil {
@@ -167,10 +167,6 @@ func TestAlgoOrderPlaceWsRequestSupportsPriceMatchWithoutPrice(t *testing.T) {
 }
 
 func TestAlgoOrderPlaceWsRequestRejectsInvalidCombinations(t *testing.T) {
-	if _, err := futures.ParseDecimal("NaN"); err == nil {
-		t.Fatal("ParseDecimal(NaN) error = nil")
-	}
-
 	tests := []struct {
 		name string
 		req  *AlgoOrderPlaceWsRequest
@@ -178,70 +174,75 @@ func TestAlgoOrderPlaceWsRequestRejectsInvalidCombinations(t *testing.T) {
 		{
 			name: "price and priceMatch",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeBuy).
-				Type(futures.AlgoOrderTypeStop).Quantity(futures.MustParseDecimal("0.001")).TriggerPrice(futures.MustParseDecimal("59000")).
-				Price(futures.MustParseDecimal("60000")).PriceMatch(futures.PriceMatchTypeOpponent),
+				Type(futures.AlgoOrderTypeStop).Quantity("0.001").TriggerPrice("59000").
+				Price("60000").PriceMatch(futures.PriceMatchTypeOpponent),
 		},
 		{
 			name: "closePosition and quantity",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
-				Type(futures.AlgoOrderTypeStopMarket).TriggerPrice(futures.MustParseDecimal("59000")).ClosePosition(true).Quantity(futures.MustParseDecimal("0.001")),
+				Type(futures.AlgoOrderTypeStopMarket).TriggerPrice("59000").ClosePosition(true).Quantity("0.001"),
 		},
 		{
 			name: "trailing callback out of range",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
-				Type(futures.AlgoOrderTypeTrailingStopMarket).Quantity(futures.MustParseDecimal("0.001")).CallbackRate(futures.MustParseDecimal("10.1")),
+				Type(futures.AlgoOrderTypeTrailingStopMarket).Quantity("0.001").CallbackRate("10.1"),
+		},
+		{
+			name: "trailing callback NaN",
+			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
+				Type(futures.AlgoOrderTypeTrailingStopMarket).Quantity("0.001").CallbackRate("NaN"),
 		},
 		{
 			name: "unsupported algo type",
 			req: NewAlgoOrderPlaceWsRequest().AlgoType(futures.OrderAlgoType("UNKNOWN")).Symbol("BTCUSDT").Side(futures.SideTypeSell).
-				Type(futures.AlgoOrderTypeTrailingStopMarket).Quantity(futures.MustParseDecimal("0.001")).CallbackRate(futures.MustParseDecimal("1")),
+				Type(futures.AlgoOrderTypeTrailingStopMarket).Quantity("0.001").CallbackRate("1"),
 		},
 		{
 			name: "unsupported conditional order type",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
-				Type(futures.AlgoOrderType("LIMIT")).Quantity(futures.MustParseDecimal("0.001")),
+				Type(futures.AlgoOrderType("LIMIT")).Quantity("0.001"),
 		},
 		{
 			name: "invalid client id",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
-				Type(futures.AlgoOrderTypeTrailingStopMarket).Quantity(futures.MustParseDecimal("0.001")).CallbackRate(futures.MustParseDecimal("1")).ClientAlgoID("invalid id"),
+				Type(futures.AlgoOrderTypeTrailingStopMarket).Quantity("0.001").CallbackRate("1").ClientAlgoID("invalid id"),
 		},
 		{
 			name: "priceMatch on market order",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
-				Type(futures.AlgoOrderTypeStopMarket).Quantity(futures.MustParseDecimal("0.001")).TriggerPrice(futures.MustParseDecimal("59000")).PriceMatch(futures.PriceMatchTypeOpponent),
+				Type(futures.AlgoOrderTypeStopMarket).Quantity("0.001").TriggerPrice("59000").PriceMatch(futures.PriceMatchTypeOpponent),
 		},
 		{
 			name: "GTD without goodTillDate",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeBuy).
-				Type(futures.AlgoOrderTypeStop).Quantity(futures.MustParseDecimal("0.001")).TriggerPrice(futures.MustParseDecimal("59000")).Price(futures.MustParseDecimal("60000")).TimeInForce(futures.TimeInForceTypeGTD),
+				Type(futures.AlgoOrderTypeStop).Quantity("0.001").TriggerPrice("59000").Price("60000").TimeInForce(futures.TimeInForceTypeGTD),
 		},
 		{
 			name: "goodTillDate without GTD",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeBuy).
-				Type(futures.AlgoOrderTypeStop).Quantity(futures.MustParseDecimal("0.001")).TriggerPrice(futures.MustParseDecimal("59000")).Price(futures.MustParseDecimal("60000")).GoodTillDate(time.Now().Add(20 * time.Minute).UnixMilli()),
+				Type(futures.AlgoOrderTypeStop).Quantity("0.001").TriggerPrice("59000").Price("60000").GoodTillDate(time.Now().Add(20 * time.Minute).UnixMilli()),
 		},
 		{
 			name: "closePosition on limit conditional",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
-				Type(futures.AlgoOrderTypeStop).TriggerPrice(futures.MustParseDecimal("59000")).Price(futures.MustParseDecimal("58000")).ClosePosition(true),
+				Type(futures.AlgoOrderTypeStop).TriggerPrice("59000").Price("58000").ClosePosition(true),
 		},
 		{
 			name: "priceProtect on limit conditional",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
-				Type(futures.AlgoOrderTypeStop).Quantity(futures.MustParseDecimal("0.001")).TriggerPrice(futures.MustParseDecimal("59000")).Price(futures.MustParseDecimal("58000")).PriceProtect(true),
+				Type(futures.AlgoOrderTypeStop).Quantity("0.001").TriggerPrice("59000").Price("58000").PriceProtect(true),
 		},
 		{
 			name: "closePosition buy long in hedge mode",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeBuy).
 				Type(futures.AlgoOrderTypeStopMarket).PositionSide(futures.PositionSideTypeLong).
-				TriggerPrice(futures.MustParseDecimal("59000")).ClosePosition(true),
+				TriggerPrice("59000").ClosePosition(true),
 		},
 		{
 			name: "closePosition sell short in hedge mode",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
 				Type(futures.AlgoOrderTypeTakeProfitMarket).PositionSide(futures.PositionSideTypeShort).
-				TriggerPrice(futures.MustParseDecimal("59000")).ClosePosition(true),
+				TriggerPrice("59000").ClosePosition(true),
 		},
 	}
 	for _, test := range tests {
@@ -260,7 +261,7 @@ func TestAlgoOrderCancelWsRequestUsesOfficialParameterNames(t *testing.T) {
 	}
 	params := req.GetParams()
 
-	if got := params["algoId"]; got != futures.AlgoOrderID(123) {
+	if got := params["algoId"]; got != int64(123) {
 		t.Fatalf("algoId = %#v, want 123", got)
 	}
 	if got := params["clientAlgoId"]; got != "client-123" {
@@ -325,8 +326,8 @@ func TestAlgoOrderWsResponsePreservesResultAndRateLimits(t *testing.T) {
 	if response.Result.Symbol != "BTCUSDT" || response.Result.AlgoStatus != futures.AlgoOrderStatusTypeNew {
 		t.Fatalf("result not fully decoded: %#v", response.Result)
 	}
-	if !response.Result.IcebergQuantity.Valid || response.Result.IcebergQuantity.Value.CanonicalString() != "0" {
-		t.Fatalf("icebergQuantity not decoded as decimal: %#v", response.Result.IcebergQuantity)
+	if response.Result.IcebergQuantity == nil || *response.Result.IcebergQuantity != "0.000" {
+		t.Fatalf("icebergQuantity not decoded as decimal string: %#v", response.Result.IcebergQuantity)
 	}
 	if len(response.RateLimits) != 1 || response.RateLimits[0].Count != 1 {
 		t.Fatalf("rate limits not decoded: %#v", response.RateLimits)
@@ -351,7 +352,7 @@ func TestAlgoOrderLifecycleStatusConstants(t *testing.T) {
 }
 
 func TestAlgoOrderCancelWsResponseUsesInt64AlgoID(t *testing.T) {
-	const largeAlgoID futures.AlgoOrderID = 3000000000003505
+	const largeAlgoID int64 = 3000000000003505
 	var response CancelAlgoOrderWsResponse
 	if err := json.Unmarshal([]byte(`{"result":{"algoId":3000000000003505,"clientAlgoId":"client-1","code":"200","msg":"success"}}`), &response); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)

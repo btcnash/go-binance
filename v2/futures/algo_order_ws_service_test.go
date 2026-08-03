@@ -41,8 +41,8 @@ func validAlgoPlaceRequest() *AlgoOrderPlaceWsRequest {
 		Symbol("BTCUSDT").
 		Side(SideTypeBuy).
 		Type(AlgoOrderTypeStopMarket).
-		Quantity(MustParseDecimal("0.001")).
-		TriggerPrice(MustParseDecimal("59000"))
+		Quantity("0.001").
+		TriggerPrice("59000")
 }
 
 func TestAlgoOrderPlaceWsServiceUsesTypedMethodAndPreservesTransportError(t *testing.T) {
@@ -84,9 +84,9 @@ func TestAlgoOrderPlaceWsServiceValidatesGoodTillDateAgainstAdjustedServerTime(t
 		Side(SideTypeBuy).
 		Type(AlgoOrderTypeStop).
 		TimeInForce(TimeInForceTypeGTD).
-		Quantity(MustParseDecimal("0.001")).
-		Price(MustParseDecimal("60000")).
-		TriggerPrice(MustParseDecimal("59000")).
+		Quantity("0.001").
+		Price("60000").
+		TriggerPrice("59000").
 		GoodTillDate(time.Now().Add(550 * time.Second).UnixMilli())
 
 	if err := service.Do("request-1", request); err != nil {
@@ -104,9 +104,9 @@ func TestAlgoOrderPlaceWsRequestRejectsGoodTillDateOnTruncatedBoundary(t *testin
 		Side(SideTypeBuy).
 		Type(AlgoOrderTypeStop).
 		TimeInForce(TimeInForceTypeGTD).
-		Quantity(MustParseDecimal("0.001")).
-		Price(MustParseDecimal("60000")).
-		TriggerPrice(MustParseDecimal("59000")).
+		Quantity("0.001").
+		Price("60000").
+		TriggerPrice("59000").
 		GoodTillDate(nowMilli + int64((600*time.Second)/time.Millisecond) + 1)
 
 	if err := request.validateAt(nowMilli); err == nil {

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
 	"time"
 
 	"github.com/btcnash/go-binance/v2/common"
@@ -37,8 +39,6 @@ var (
 	ErrAlgoOrderCancelIdentityNeeded   = errors.New("algo order cancel ws: algoId or clientAlgoId is required")
 	ErrAlgoOrderCancelAlgoIDInvalid    = errors.New("algo order cancel ws: algoId must be greater than zero")
 	ErrAlgoOrderCancelClientIDInvalid  = errors.New("algo order cancel ws: clientAlgoId cannot be empty")
-	algoOrderCallbackRateMin           = MustParseDecimal("0.1")
-	algoOrderCallbackRateMax           = MustParseDecimal("10")
 )
 
 // WsRateLimit describes the rate-limit snapshot returned by Futures WSAPI.
@@ -81,16 +81,16 @@ type AlgoOrderPlaceWsRequest struct {
 	orderType               AlgoOrderType
 	positionSide            *PositionSideType
 	timeInForce             *TimeInForceType
-	quantity                *Decimal
-	price                   *Decimal
-	triggerPrice            *Decimal
+	quantity                *string
+	price                   *string
+	triggerPrice            *string
 	workingType             *WorkingType
 	priceMatch              *PriceMatchType
 	closePosition           *bool
 	priceProtect            *bool
 	reduceOnly              *bool
-	activatePrice           *Decimal
-	callbackRate            *Decimal
+	activatePrice           *string
+	callbackRate            *string
 	legacyClientOrderID     *string
 	clientAlgoID            *string
 	newOrderRespType        NewOrderRespType
@@ -131,15 +131,15 @@ func (r *AlgoOrderPlaceWsRequest) TimeInForce(value TimeInForceType) *AlgoOrderP
 	r.timeInForce = &value
 	return r
 }
-func (r *AlgoOrderPlaceWsRequest) Quantity(value Decimal) *AlgoOrderPlaceWsRequest {
+func (r *AlgoOrderPlaceWsRequest) Quantity(value string) *AlgoOrderPlaceWsRequest {
 	r.quantity = &value
 	return r
 }
-func (r *AlgoOrderPlaceWsRequest) Price(value Decimal) *AlgoOrderPlaceWsRequest {
+func (r *AlgoOrderPlaceWsRequest) Price(value string) *AlgoOrderPlaceWsRequest {
 	r.price = &value
 	return r
 }
-func (r *AlgoOrderPlaceWsRequest) TriggerPrice(value Decimal) *AlgoOrderPlaceWsRequest {
+func (r *AlgoOrderPlaceWsRequest) TriggerPrice(value string) *AlgoOrderPlaceWsRequest {
 	r.triggerPrice = &value
 	return r
 }
@@ -163,14 +163,14 @@ func (r *AlgoOrderPlaceWsRequest) ReduceOnly(value bool) *AlgoOrderPlaceWsReques
 	r.reduceOnly = &value
 	return r
 }
-func (r *AlgoOrderPlaceWsRequest) ActivationPrice(value Decimal) *AlgoOrderPlaceWsRequest {
+func (r *AlgoOrderPlaceWsRequest) ActivationPrice(value string) *AlgoOrderPlaceWsRequest {
 	return r.ActivatePrice(value)
 }
-func (r *AlgoOrderPlaceWsRequest) ActivatePrice(value Decimal) *AlgoOrderPlaceWsRequest {
+func (r *AlgoOrderPlaceWsRequest) ActivatePrice(value string) *AlgoOrderPlaceWsRequest {
 	r.activatePrice = &value
 	return r
 }
-func (r *AlgoOrderPlaceWsRequest) CallbackRate(value Decimal) *AlgoOrderPlaceWsRequest {
+func (r *AlgoOrderPlaceWsRequest) CallbackRate(value string) *AlgoOrderPlaceWsRequest {
 	r.callbackRate = &value
 	return r
 }
@@ -296,8 +296,9 @@ func (r *AlgoOrderPlaceWsRequest) validateAt(nowMilli int64) error {
 		if r.callbackRate == nil {
 			return ErrAlgoOrderCallbackRateRequired
 		}
-		if r.callbackRate.Cmp(algoOrderCallbackRateMin) < 0 || r.callbackRate.Cmp(algoOrderCallbackRateMax) > 0 {
-			return fmt.Errorf("%w: %s", ErrAlgoOrderCallbackRateOutOfRange, r.callbackRate.CanonicalString())
+		rate, err := strconv.ParseFloat(*r.callbackRate, 64)
+		if err != nil || math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0.1 || rate > 10 {
+			return fmt.Errorf("%w: %q", ErrAlgoOrderCallbackRateOutOfRange, *r.callbackRate)
 		}
 	}
 	return nil
@@ -347,13 +348,13 @@ func (r *AlgoOrderPlaceWsRequest) buildParams() params {
 		m["timeInForce"] = *r.timeInForce
 	}
 	if r.quantity != nil {
-		m["quantity"] = r.quantity.CanonicalString()
+		m["quantity"] = *r.quantity
 	}
 	if r.price != nil {
-		m["price"] = r.price.CanonicalString()
+		m["price"] = *r.price
 	}
 	if r.triggerPrice != nil {
-		m["triggerPrice"] = r.triggerPrice.CanonicalString()
+		m["triggerPrice"] = *r.triggerPrice
 	}
 	if r.workingType != nil {
 		m["workingType"] = *r.workingType
@@ -371,10 +372,10 @@ func (r *AlgoOrderPlaceWsRequest) buildParams() params {
 		m["reduceOnly"] = *r.reduceOnly
 	}
 	if r.activatePrice != nil {
-		m["activatePrice"] = r.activatePrice.CanonicalString()
+		m["activatePrice"] = *r.activatePrice
 	}
 	if r.callbackRate != nil {
-		m["callbackRate"] = r.callbackRate.CanonicalString()
+		m["callbackRate"] = *r.callbackRate
 	}
 	if clientAlgoID := r.effectiveClientAlgoID(); clientAlgoID != nil {
 		m["clientAlgoId"] = *clientAlgoID
@@ -393,7 +394,7 @@ func (r *AlgoOrderPlaceWsRequest) buildParams() params {
 
 // CreateAlgoOrderResult is the typed result returned by algoOrder.place.
 type CreateAlgoOrderResult struct {
-	AlgoId                  AlgoOrderID             `json:"algoId"`
+	AlgoId                  int64                   `json:"algoId"`
 	ClientAlgoId            string                  `json:"clientAlgoId"`
 	AlgoType                OrderAlgoType           `json:"algoType"`
 	OrderType               AlgoOrderType           `json:"orderType"`
@@ -401,13 +402,11 @@ type CreateAlgoOrderResult struct {
 	Side                    SideType                `json:"side"`
 	PositionSide            PositionSideType        `json:"positionSide"`
 	TimeInForce             TimeInForceType         `json:"timeInForce"`
-	Quantity                Decimal                 `json:"quantity"`
+	Quantity                string                  `json:"quantity"`
 	AlgoStatus              AlgoOrderStatusType     `json:"algoStatus"`
-	TriggerPrice            Decimal                 `json:"triggerPrice"`
-	Price                   Decimal                 `json:"price"`
-	IcebergQuantity         OptionalDecimal         `json:"icebergQuantity"`
-	ActivatePrice           OptionalDecimal         `json:"activatePrice"`
-	CallbackRate            OptionalDecimal         `json:"callbackRate"`
+	TriggerPrice            string                  `json:"triggerPrice"`
+	Price                   string                  `json:"price"`
+	IcebergQuantity         *string                 `json:"icebergQuantity"`
 	SelfTradePreventionMode SelfTradePreventionMode `json:"selfTradePreventionMode"`
 	WorkingType             WorkingType             `json:"workingType"`
 	PriceMatch              PriceMatchType          `json:"priceMatch"`

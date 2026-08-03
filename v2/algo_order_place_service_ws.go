@@ -14,5 +14,6 @@ func NewAlgoOrderPlaceWsService(apiKey, secretKey string) (*AlgoOrderPlaceWsServ
 }
 
 func NewAlgoOrderPlaceWsRequest() *AlgoOrderPlaceWsRequest {
-	return futures.NewAlgoOrderPlaceWsRequest()
+	// Preserve the legacy top-level behavior; the canonical futures request defaults to ACK.
+	return futures.NewAlgoOrderPlaceWsRequest().NewOrderResponseType(futures.NewOrderRespTypeRESULT)
 }

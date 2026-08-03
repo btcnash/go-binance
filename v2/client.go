@@ -1505,11 +1505,27 @@ func (c *Client) NewSorOrderTestWsService() (*SorOrderTestWsService, error) {
 // NewAlgoOrderPlaceWsService initializes the USDⓈ-M Futures Algo WSAPI placement service.
 // Deprecated: use futures.Client.NewAlgoOrderPlaceWsService.
 func (c *Client) NewAlgoOrderPlaceWsService() (*AlgoOrderPlaceWsService, error) {
-	return NewAlgoOrderPlaceWsService(c.APIKey, c.SecretKey)
+	service, err := NewAlgoOrderPlaceWsService(c.APIKey, c.SecretKey)
+	if err != nil {
+		return nil, err
+	}
+	service.TimeOffset = c.TimeOffset
+	if c.KeyType != "" {
+		service.KeyType = c.KeyType
+	}
+	return service, nil
 }
 
 // NewAlgoOrderCancelWsService initializes the USDⓈ-M Futures Algo WSAPI cancellation service.
 // Deprecated: use futures.Client.NewAlgoOrderCancelWsService.
 func (c *Client) NewAlgoOrderCancelWsService() (*AlgoOrderCancelWsService, error) {
-	return NewAlgoOrderCancelWsService(c.APIKey, c.SecretKey)
+	service, err := NewAlgoOrderCancelWsService(c.APIKey, c.SecretKey)
+	if err != nil {
+		return nil, err
+	}
+	service.TimeOffset = c.TimeOffset
+	if c.KeyType != "" {
+		service.KeyType = c.KeyType
+	}
+	return service, nil
 }

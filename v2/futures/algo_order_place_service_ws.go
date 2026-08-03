@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -13,9 +14,11 @@ import (
 
 var (
 	ErrAlgoOrderPlaceRequestNil        = errors.New("algo order place ws: request is nil")
+	ErrAlgoOrderAlgoTypeUnsupported    = errors.New("algo order place ws: algoType must be CONDITIONAL")
 	ErrAlgoOrderSymbolRequired         = errors.New("algo order place ws: symbol is required")
 	ErrAlgoOrderSideRequired           = errors.New("algo order place ws: side is required")
 	ErrAlgoOrderTypeRequired           = errors.New("algo order place ws: type is required")
+	ErrAlgoOrderTypeUnsupported        = errors.New("algo order place ws: unsupported conditional order type")
 	ErrAlgoOrderQuantityRequired       = errors.New("algo order place ws: quantity is required unless closePosition is true")
 	ErrAlgoOrderTriggerPriceRequired   = errors.New("algo order place ws: triggerPrice is required for stop and take-profit orders")
 	ErrAlgoOrderPriceRequired          = errors.New("algo order place ws: price or priceMatch is required for STOP and TAKE_PROFIT")
@@ -23,6 +26,7 @@ var (
 	ErrAlgoOrderPriceMatchTypeConflict = errors.New("algo order place ws: priceMatch is only supported for STOP and TAKE_PROFIT")
 	ErrAlgoOrderClosePositionConflict  = errors.New("algo order place ws: closePosition cannot be sent with quantity or reduceOnly")
 	ErrAlgoOrderClosePositionType      = errors.New("algo order place ws: closePosition is only supported for STOP_MARKET and TAKE_PROFIT_MARKET")
+	ErrAlgoOrderClosePositionHedgeMode = errors.New("algo order place ws: closePosition cannot be used with BUY/LONG or SELL/SHORT in Hedge Mode")
 	ErrAlgoOrderPriceProtectType       = errors.New("algo order place ws: priceProtect is only supported for STOP_MARKET and TAKE_PROFIT_MARKET")
 	ErrAlgoOrderReduceOnlyHedgeMode    = errors.New("algo order place ws: reduceOnly cannot be sent in Hedge Mode")
 	ErrAlgoOrderTrailingParamConflict  = errors.New("algo order place ws: activatePrice and callbackRate are only supported for TRAILING_STOP_MARKET")
@@ -33,6 +37,8 @@ var (
 	ErrAlgoOrderCallbackRateOutOfRange = errors.New("algo order place ws: callbackRate must be between 0.1 and 10")
 	ErrAlgoOrderClientIDInvalid        = errors.New("algo order place ws: clientAlgoId must match ^[.A-Z:/a-z0-9_-]{1,36}$")
 	ErrAlgoOrderCancelIdentityNeeded   = errors.New("algo order cancel ws: algoId or clientAlgoId is required")
+	ErrAlgoOrderCancelAlgoIDInvalid    = errors.New("algo order cancel ws: algoId must be greater than zero")
+	ErrAlgoOrderCancelClientIDInvalid  = errors.New("algo order cancel ws: clientAlgoId cannot be empty")
 )
 
 // WsRateLimit describes the rate-limit snapshot returned by Futures WSAPI.
@@ -85,6 +91,7 @@ type AlgoOrderPlaceWsRequest struct {
 	reduceOnly              *bool
 	activatePrice           *string
 	callbackRate            *string
+	legacyClientOrderID     *string
 	clientAlgoID            *string
 	newOrderRespType        NewOrderRespType
 	selfTradePreventionMode *SelfTradePreventionMode
@@ -171,7 +178,8 @@ func (r *AlgoOrderPlaceWsRequest) CallbackRate(value string) *AlgoOrderPlaceWsRe
 // NewClientOrderID is retained for source compatibility.
 // Deprecated: use ClientAlgoID.
 func (r *AlgoOrderPlaceWsRequest) NewClientOrderID(value string) *AlgoOrderPlaceWsRequest {
-	return r.ClientAlgoID(value)
+	r.legacyClientOrderID = &value
+	return r
 }
 func (r *AlgoOrderPlaceWsRequest) ClientAlgoID(value string) *AlgoOrderPlaceWsRequest {
 	r.clientAlgoID = &value
@@ -196,8 +204,15 @@ func (r *AlgoOrderPlaceWsRequest) RecvWindow(value int64) *AlgoOrderPlaceWsReque
 
 // Validate checks the parameter combinations documented for algoOrder.place.
 func (r *AlgoOrderPlaceWsRequest) Validate() error {
+	return r.validateAt(time.Now().UnixMilli())
+}
+
+func (r *AlgoOrderPlaceWsRequest) validateAt(nowMilli int64) error {
 	if r == nil {
 		return ErrAlgoOrderPlaceRequestNil
+	}
+	if r.algoType != OrderAlgoTypeConditional {
+		return ErrAlgoOrderAlgoTypeUnsupported
 	}
 	if r.symbol == "" {
 		return ErrAlgoOrderSymbolRequired
@@ -207,6 +222,15 @@ func (r *AlgoOrderPlaceWsRequest) Validate() error {
 	}
 	if r.orderType == "" {
 		return ErrAlgoOrderTypeRequired
+	}
+	switch r.orderType {
+	case AlgoOrderTypeStop,
+		AlgoOrderTypeStopMarket,
+		AlgoOrderTypeTakeProfit,
+		AlgoOrderTypeTakeProfitMarket,
+		AlgoOrderTypeTrailingStopMarket:
+	default:
+		return ErrAlgoOrderTypeUnsupported
 	}
 	if r.price != nil && r.priceMatch != nil {
 		return ErrAlgoOrderPriceConflict
@@ -220,6 +244,11 @@ func (r *AlgoOrderPlaceWsRequest) Validate() error {
 		}
 		if *r.closePosition && (r.quantity != nil || r.reduceOnly != nil) {
 			return ErrAlgoOrderClosePositionConflict
+		}
+		if *r.closePosition && r.positionSide != nil &&
+			((r.side == SideTypeBuy && *r.positionSide == PositionSideTypeLong) ||
+				(r.side == SideTypeSell && *r.positionSide == PositionSideTypeShort)) {
+			return ErrAlgoOrderClosePositionHedgeMode
 		}
 	}
 	if r.priceProtect != nil && r.orderType != AlgoOrderTypeStopMarket && r.orderType != AlgoOrderTypeTakeProfitMarket {
@@ -235,8 +264,9 @@ func (r *AlgoOrderPlaceWsRequest) Validate() error {
 		if r.goodTillDate == nil {
 			return ErrAlgoOrderGoodTillDateRequired
 		}
-		nowWithMinimumLead := time.Now().Add(600 * time.Second).UnixMilli()
-		if *r.goodTillDate <= nowWithMinimumLead || *r.goodTillDate >= 253402300799000 {
+		nowSecond := nowMilli / int64(time.Second/time.Millisecond)
+		goodTillDateSecond := *r.goodTillDate / int64(time.Second/time.Millisecond)
+		if goodTillDateSecond <= nowSecond+600 || *r.goodTillDate >= 253402300799000 {
 			return ErrAlgoOrderGoodTillDateOutOfRange
 		}
 	} else if r.goodTillDate != nil {
@@ -245,7 +275,8 @@ func (r *AlgoOrderPlaceWsRequest) Validate() error {
 	if (r.closePosition == nil || !*r.closePosition) && r.quantity == nil {
 		return ErrAlgoOrderQuantityRequired
 	}
-	if r.clientAlgoID != nil && !validClientAlgoID(*r.clientAlgoID) {
+	effectiveClientAlgoID := r.effectiveClientAlgoID()
+	if effectiveClientAlgoID != nil && !validClientAlgoID(*effectiveClientAlgoID) {
 		return ErrAlgoOrderClientIDInvalid
 	}
 
@@ -266,7 +297,7 @@ func (r *AlgoOrderPlaceWsRequest) Validate() error {
 			return ErrAlgoOrderCallbackRateRequired
 		}
 		rate, err := strconv.ParseFloat(*r.callbackRate, 64)
-		if err != nil || rate < 0.1 || rate > 10 {
+		if err != nil || math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0.1 || rate > 10 {
 			return fmt.Errorf("%w: %q", ErrAlgoOrderCallbackRateOutOfRange, *r.callbackRate)
 		}
 	}
@@ -288,6 +319,13 @@ func validClientAlgoID(value string) bool {
 		}
 	}
 	return true
+}
+
+func (r *AlgoOrderPlaceWsRequest) effectiveClientAlgoID() *string {
+	if r.clientAlgoID != nil {
+		return r.clientAlgoID
+	}
+	return r.legacyClientOrderID
 }
 
 // GetParams returns the exact signed parameter contract sent to Binance.
@@ -339,8 +377,8 @@ func (r *AlgoOrderPlaceWsRequest) buildParams() params {
 	if r.callbackRate != nil {
 		m["callbackRate"] = *r.callbackRate
 	}
-	if r.clientAlgoID != nil {
-		m["clientAlgoId"] = *r.clientAlgoID
+	if clientAlgoID := r.effectiveClientAlgoID(); clientAlgoID != nil {
+		m["clientAlgoId"] = *clientAlgoID
 	}
 	if r.selfTradePreventionMode != nil {
 		m["selfTradePreventionMode"] = *r.selfTradePreventionMode
@@ -391,7 +429,8 @@ type CreateAlgoOrderWsResponse struct {
 }
 
 func (s *AlgoOrderPlaceWsService) buildRequest(requestID string, request *AlgoOrderPlaceWsRequest) ([]byte, error) {
-	if err := request.Validate(); err != nil {
+	serverNowMilli := time.Now().UnixMilli() - s.TimeOffset
+	if err := request.validateAt(serverNowMilli); err != nil {
 		return nil, err
 	}
 	return websocket.CreateRequest(

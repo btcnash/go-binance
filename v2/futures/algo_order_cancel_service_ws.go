@@ -33,6 +33,12 @@ func (r *AlgoOrderCancelWsRequest) Validate() error {
 	if r == nil || (r.algoID == nil && r.clientAlgoID == nil) {
 		return ErrAlgoOrderCancelIdentityNeeded
 	}
+	if r.algoID != nil && *r.algoID <= 0 {
+		return ErrAlgoOrderCancelAlgoIDInvalid
+	}
+	if r.clientAlgoID != nil && *r.clientAlgoID == "" {
+		return ErrAlgoOrderCancelClientIDInvalid
+	}
 	return nil
 }
 

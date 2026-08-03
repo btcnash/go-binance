@@ -66,8 +66,8 @@ func TestAlgoOrderPlaceWsRequestBuildsOfficialContract(t *testing.T) {
 	}
 }
 
-func TestAlgoOrderPlaceWsRequestDefaultsToAckAndOmitsUnsetTriggerPrice(t *testing.T) {
-	req := NewAlgoOrderPlaceWsRequest().
+func TestFuturesAlgoOrderPlaceWsRequestDefaultsToAckAndOmitsUnsetTriggerPrice(t *testing.T) {
+	req := futures.NewAlgoOrderPlaceWsRequest().
 		Symbol("BTCUSDT").
 		Side(futures.SideTypeSell).
 		Type(futures.AlgoOrderTypeTrailingStopMarket).
@@ -87,6 +87,40 @@ func TestAlgoOrderPlaceWsRequestDefaultsToAckAndOmitsUnsetTriggerPrice(t *testin
 	}
 	if _, exists := params["triggerPrice"]; exists {
 		t.Fatalf("unset triggerPrice must be omitted: %#v", params)
+	}
+}
+
+func TestLegacyTopLevelAlgoOrderPlaceWsRequestPreservesResultDefault(t *testing.T) {
+	req := NewAlgoOrderPlaceWsRequest().
+		Symbol("BTCUSDT").
+		Side(futures.SideTypeSell).
+		Type(futures.AlgoOrderTypeTrailingStopMarket).
+		Quantity("0.001").
+		CallbackRate("1")
+
+	if err := req.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if got := req.GetParams()["newOrderRespType"]; got != futures.NewOrderRespTypeRESULT {
+		t.Fatalf("newOrderRespType = %#v, want legacy RESULT default", got)
+	}
+}
+
+func TestDeprecatedNewClientOrderIDPreservesLegacyPrecedence(t *testing.T) {
+	req := NewAlgoOrderPlaceWsRequest().
+		Symbol("BTCUSDT").
+		Side(futures.SideTypeSell).
+		Type(futures.AlgoOrderTypeTrailingStopMarket).
+		Quantity("0.001").
+		CallbackRate("1").
+		ClientAlgoID("preferred-client-id").
+		NewClientOrderID("legacy-client-id")
+
+	if err := req.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if got := req.GetParams()["clientAlgoId"]; got != "preferred-client-id" {
+		t.Fatalf("clientAlgoId = %#v, want preferred clientAlgoId", got)
 	}
 }
 
@@ -154,6 +188,21 @@ func TestAlgoOrderPlaceWsRequestRejectsInvalidCombinations(t *testing.T) {
 				Type(futures.AlgoOrderTypeTrailingStopMarket).Quantity("0.001").CallbackRate("10.1"),
 		},
 		{
+			name: "trailing callback NaN",
+			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
+				Type(futures.AlgoOrderTypeTrailingStopMarket).Quantity("0.001").CallbackRate("NaN"),
+		},
+		{
+			name: "unsupported algo type",
+			req: NewAlgoOrderPlaceWsRequest().AlgoType(futures.OrderAlgoType("UNKNOWN")).Symbol("BTCUSDT").Side(futures.SideTypeSell).
+				Type(futures.AlgoOrderTypeTrailingStopMarket).Quantity("0.001").CallbackRate("1"),
+		},
+		{
+			name: "unsupported conditional order type",
+			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
+				Type(futures.AlgoOrderType("LIMIT")).Quantity("0.001"),
+		},
+		{
 			name: "invalid client id",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
 				Type(futures.AlgoOrderTypeTrailingStopMarket).Quantity("0.001").CallbackRate("1").ClientAlgoID("invalid id"),
@@ -182,6 +231,18 @@ func TestAlgoOrderPlaceWsRequestRejectsInvalidCombinations(t *testing.T) {
 			name: "priceProtect on limit conditional",
 			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
 				Type(futures.AlgoOrderTypeStop).Quantity("0.001").TriggerPrice("59000").Price("58000").PriceProtect(true),
+		},
+		{
+			name: "closePosition buy long in hedge mode",
+			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeBuy).
+				Type(futures.AlgoOrderTypeStopMarket).PositionSide(futures.PositionSideTypeLong).
+				TriggerPrice("59000").ClosePosition(true),
+		},
+		{
+			name: "closePosition sell short in hedge mode",
+			req: NewAlgoOrderPlaceWsRequest().Symbol("BTCUSDT").Side(futures.SideTypeSell).
+				Type(futures.AlgoOrderTypeTakeProfitMarket).PositionSide(futures.PositionSideTypeShort).
+				TriggerPrice("59000").ClosePosition(true),
 		},
 	}
 	for _, test := range tests {
@@ -217,6 +278,12 @@ func TestAlgoOrderCancelWsRequestUsesOfficialParameterNames(t *testing.T) {
 func TestAlgoOrderCancelWsRequestRequiresIdentity(t *testing.T) {
 	if err := NewAlgoOrderCancelWsRequest().Validate(); err == nil {
 		t.Fatal("Validate() error = nil, want missing identity error")
+	}
+	if err := NewAlgoOrderCancelWsRequest().AlgoID(0).Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want invalid algo ID error")
+	}
+	if err := NewAlgoOrderCancelWsRequest().ClientAlgoID("").Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want invalid client algo ID error")
 	}
 }
 

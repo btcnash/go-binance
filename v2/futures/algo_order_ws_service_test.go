@@ -73,6 +73,47 @@ func TestAlgoOrderPlaceWsServiceUsesTypedMethodAndPreservesTransportError(t *tes
 	}
 }
 
+func TestAlgoOrderPlaceWsServiceValidatesGoodTillDateAgainstAdjustedServerTime(t *testing.T) {
+	fake := &algoWSFakeClient{}
+	service := &AlgoOrderPlaceWsService{
+		c: fake, ApiKey: "key", SecretKey: "secret", KeyType: "HMAC",
+		TimeOffset: int64((2 * time.Minute) / time.Millisecond),
+	}
+	request := NewAlgoOrderPlaceWsRequest().
+		Symbol("BTCUSDT").
+		Side(SideTypeBuy).
+		Type(AlgoOrderTypeStop).
+		TimeInForce(TimeInForceTypeGTD).
+		Quantity("0.001").
+		Price("60000").
+		TriggerPrice("59000").
+		GoodTillDate(time.Now().Add(550 * time.Second).UnixMilli())
+
+	if err := service.Do("request-1", request); err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	if len(fake.lastData) == 0 {
+		t.Fatal("Do() did not send a request")
+	}
+}
+
+func TestAlgoOrderPlaceWsRequestRejectsGoodTillDateOnTruncatedBoundary(t *testing.T) {
+	const nowMilli int64 = 1_700_000_000_900
+	request := NewAlgoOrderPlaceWsRequest().
+		Symbol("BTCUSDT").
+		Side(SideTypeBuy).
+		Type(AlgoOrderTypeStop).
+		TimeInForce(TimeInForceTypeGTD).
+		Quantity("0.001").
+		Price("60000").
+		TriggerPrice("59000").
+		GoodTillDate(nowMilli + int64((600*time.Second)/time.Millisecond) + 1)
+
+	if err := request.validateAt(nowMilli); err == nil {
+		t.Fatal("validateAt() error = nil, want second-precision GTD boundary error")
+	}
+}
+
 func TestAlgoOrderCancelWsServiceDecodesErrorAndRateLimitResponse(t *testing.T) {
 	fake := &algoWSFakeClient{response: []byte(`{
 		"id":"cancel-1",

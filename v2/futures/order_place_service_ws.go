@@ -6,6 +6,7 @@ import (
 
 	"github.com/btcnash/go-binance/v2/common"
 	"github.com/btcnash/go-binance/v2/common/websocket"
+	managedfutures "github.com/btcnash/go-binance/v2/futures/wsapi"
 )
 
 // OrderPlaceWsService creates order
@@ -20,6 +21,21 @@ type OrderPlaceWsService struct {
 // NewOrderPlaceWsService init OrderPlaceWsService
 func NewOrderPlaceWsService(apiKey, secretKey string) (*OrderPlaceWsService, error) {
 	client, err := newManagedLegacyWSAPIClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return &OrderPlaceWsService{
+		c:         client,
+		ApiKey:    apiKey,
+		SecretKey: secretKey,
+		KeyType:   common.KeyTypeHmac,
+	}, nil
+}
+
+// NewOrderPlaceWsServiceWithSession initializes OrderPlaceWsService with an externally managed shared Session.
+func NewOrderPlaceWsServiceWithSession(session *managedfutures.Session, apiKey, secretKey string) (*OrderPlaceWsService, error) {
+	client, err := newBorrowedLegacyWSAPIClient(session)
 	if err != nil {
 		return nil, err
 	}

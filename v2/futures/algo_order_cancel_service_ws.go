@@ -6,6 +6,7 @@ import (
 
 	"github.com/btcnash/go-binance/v2/common"
 	"github.com/btcnash/go-binance/v2/common/websocket"
+	managedfutures "github.com/btcnash/go-binance/v2/futures/wsapi"
 )
 
 // AlgoOrderCancelWsRequest contains parameters for algoOrder.cancel.
@@ -83,6 +84,15 @@ type AlgoOrderCancelWsService struct {
 
 func NewAlgoOrderCancelWsService(apiKey, secretKey string) (*AlgoOrderCancelWsService, error) {
 	client, err := newManagedLegacyWSAPIClient()
+	if err != nil {
+		return nil, err
+	}
+	return &AlgoOrderCancelWsService{c: client, ApiKey: apiKey, SecretKey: secretKey, KeyType: common.KeyTypeHmac}, nil
+}
+
+// NewAlgoOrderCancelWsServiceWithSession initializes AlgoOrderCancelWsService with an externally managed shared Session.
+func NewAlgoOrderCancelWsServiceWithSession(session *managedfutures.Session, apiKey, secretKey string) (*AlgoOrderCancelWsService, error) {
+	client, err := newBorrowedLegacyWSAPIClient(session)
 	if err != nil {
 		return nil, err
 	}

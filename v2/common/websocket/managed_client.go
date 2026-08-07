@@ -27,6 +27,7 @@ type ManagedClient struct {
 	count   int64
 
 	reconnectCount int64
+	ownsSession    bool
 	closeOnce      sync.Once
 }
 
@@ -35,30 +36,45 @@ func NewManagedClient(session *apiws.Session) (Client, error) {
 	if session == nil {
 		return nil, errors.New("ws managed client: nil session")
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	if err := session.Start(ctx); err != nil {
-		cancel()
+	client := newManagedClient(session, true)
+	if err := session.Start(client.ctx); err != nil {
+		client.cancel()
 		return nil, err
 	}
-	readyCtx, readyCancel := context.WithTimeout(ctx, 45*time.Second)
+	readyCtx, readyCancel := context.WithTimeout(client.ctx, 45*time.Second)
 	err := session.WaitReady(readyCtx)
 	readyCancel()
 	if err != nil {
-		cancel()
+		client.cancel()
 		_ = session.Close()
 		return nil, err
-	}
-	client := &ManagedClient{
-		session: session,
-		ctx:     ctx,
-		cancel:  cancel,
-		readC:   make(chan []byte, 64),
-		errC:    make(chan error, 64),
-		pending: make(map[string]struct{}),
 	}
 	go client.observeStates()
 	go client.forwardUnsolicited()
 	return client, nil
+}
+
+// NewBorrowedManagedClient returns a legacy Client adapter that borrows an
+// externally managed session. It never starts, waits for, closes, or consumes
+// lifecycle/unsolicited channels from the shared session.
+func NewBorrowedManagedClient(session *apiws.Session) (Client, error) {
+	if session == nil {
+		return nil, errors.New("ws managed client: nil session")
+	}
+	return newManagedClient(session, false), nil
+}
+
+func newManagedClient(session *apiws.Session, ownsSession bool) *ManagedClient {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &ManagedClient{
+		session:     session,
+		ctx:         ctx,
+		cancel:      cancel,
+		readC:       make(chan []byte, 64),
+		errC:        make(chan error, 64),
+		pending:     make(map[string]struct{}),
+		ownsSession: ownsSession,
+	}
 }
 
 func (c *ManagedClient) Write(id string, data []byte) error {
@@ -141,7 +157,12 @@ func legacyOutcome(method string) apiws.OutcomePolicy {
 
 func (c *ManagedClient) GetReadChannel() <-chan []byte     { return c.readC }
 func (c *ManagedClient) GetReadErrorChannel() <-chan error { return c.errC }
-func (c *ManagedClient) GetReconnectCount() int64          { return atomic.LoadInt64(&c.reconnectCount) }
+func (c *ManagedClient) GetReconnectCount() int64 {
+	if !c.ownsSession {
+		return int64(c.session.Stats().Transport.Reconnects)
+	}
+	return atomic.LoadInt64(&c.reconnectCount)
+}
 
 func (c *ManagedClient) Wait(timeout time.Duration) {
 	deadline := time.Now().Add(timeout)
@@ -161,7 +182,9 @@ func (c *ManagedClient) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
 		c.cancel()
-		err = c.session.Close()
+		if c.ownsSession {
+			err = c.session.Close()
+		}
 	})
 	return err
 }

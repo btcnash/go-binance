@@ -10,6 +10,7 @@ import (
 
 	"github.com/btcnash/go-binance/v2/common"
 	"github.com/btcnash/go-binance/v2/common/websocket"
+	managedfutures "github.com/btcnash/go-binance/v2/futures/wsapi"
 )
 
 var (
@@ -65,6 +66,21 @@ func NewAlgoOrderPlaceWsService(apiKey, secretKey string) (*AlgoOrderPlaceWsServ
 	if err != nil {
 		return nil, err
 	}
+	return &AlgoOrderPlaceWsService{
+		c:         client,
+		ApiKey:    apiKey,
+		SecretKey: secretKey,
+		KeyType:   common.KeyTypeHmac,
+	}, nil
+}
+
+// NewAlgoOrderPlaceWsServiceWithSession initializes AlgoOrderPlaceWsService with an externally managed shared Session.
+func NewAlgoOrderPlaceWsServiceWithSession(session *managedfutures.Session, apiKey, secretKey string) (*AlgoOrderPlaceWsService, error) {
+	client, err := newBorrowedLegacyWSAPIClient(session)
+	if err != nil {
+		return nil, err
+	}
+
 	return &AlgoOrderPlaceWsService{
 		c:         client,
 		ApiKey:    apiKey,

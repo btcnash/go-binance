@@ -12,3 +12,7 @@ func newManagedLegacyWSAPIClient() (legacyws.Client, error) {
 	}
 	return legacyws.NewManagedClient(session)
 }
+
+func newBorrowedLegacyWSAPIClient(session *managedfutures.Session) (legacyws.Client, error) {
+	return legacyws.NewBorrowedManagedClient(session)
+}

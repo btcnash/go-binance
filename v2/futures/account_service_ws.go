@@ -6,6 +6,7 @@ import (
 
 	"github.com/btcnash/go-binance/v2/common"
 	"github.com/btcnash/go-binance/v2/common/websocket"
+	managedfutures "github.com/btcnash/go-binance/v2/futures/wsapi"
 	"github.com/google/uuid"
 )
 
@@ -20,6 +21,27 @@ type WsAccountService struct {
 
 func NewWsAccountService(apiKey, secretKey string, recvWindow ...int64) (*WsAccountService, error) {
 	client, err := newManagedLegacyWSAPIClient()
+	if err != nil {
+		return nil, err
+	}
+
+	window := int64(5000)
+	if len(recvWindow) > 0 {
+		window = recvWindow[0]
+	}
+
+	return &WsAccountService{
+		c:          client,
+		ApiKey:     apiKey,
+		SecretKey:  secretKey,
+		KeyType:    common.KeyTypeHmac,
+		RecvWindow: window,
+	}, nil
+}
+
+// NewWsAccountServiceWithSession initializes WsAccountService with an externally managed shared Session.
+func NewWsAccountServiceWithSession(session *managedfutures.Session, apiKey, secretKey string, recvWindow ...int64) (*WsAccountService, error) {
+	client, err := newBorrowedLegacyWSAPIClient(session)
 	if err != nil {
 		return nil, err
 	}

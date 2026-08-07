@@ -1,6 +1,7 @@
 package futures
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -472,6 +473,23 @@ func (s *AlgoOrderPlaceWsService) SyncDo(requestID string, request *AlgoOrderPla
 		return nil, err
 	}
 	response, err := s.c.WriteSync(requestID, rawData, websocket.WriteSyncWsTimeout)
+	if err != nil {
+		return nil, err
+	}
+	result := &CreateAlgoOrderWsResponse{}
+	if err := json.Unmarshal(response, result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// SyncDoContext sends algoOrder.place with caller cancellation/deadline semantics.
+func (s *AlgoOrderPlaceWsService) SyncDoContext(ctx context.Context, requestID string, request *AlgoOrderPlaceWsRequest) (*CreateAlgoOrderWsResponse, error) {
+	rawData, err := s.buildRequest(requestID, request)
+	if err != nil {
+		return nil, err
+	}
+	response, err := writeLegacyWSAPISyncContext(ctx, s.c, requestID, rawData, websocket.WriteSyncWsTimeout)
 	if err != nil {
 		return nil, err
 	}

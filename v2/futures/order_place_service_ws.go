@@ -1,6 +1,7 @@
 package futures
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -248,9 +249,8 @@ func (s *OrderPlaceWsRequest) buildParams() params {
 	return m
 }
 
-// Do - sends 'order.place' request
-func (s *OrderPlaceWsService) Do(requestID string, request *OrderPlaceWsRequest) error {
-	rawData, err := websocket.CreateRequest(
+func (s *OrderPlaceWsService) buildRequest(requestID string, request *OrderPlaceWsRequest) ([]byte, error) {
+	return websocket.CreateRequest(
 		websocket.NewRequestData(
 			requestID,
 			s.ApiKey,
@@ -261,6 +261,11 @@ func (s *OrderPlaceWsService) Do(requestID string, request *OrderPlaceWsRequest)
 		websocket.OrderPlaceFuturesWsApiMethod,
 		request.buildParams(),
 	)
+}
+
+// Do - sends 'order.place' request
+func (s *OrderPlaceWsService) Do(requestID string, request *OrderPlaceWsRequest) error {
+	rawData, err := s.buildRequest(requestID, request)
 	if err != nil {
 		return err
 	}
@@ -274,17 +279,7 @@ func (s *OrderPlaceWsService) Do(requestID string, request *OrderPlaceWsRequest)
 
 // SyncDo - sends 'order.place' request and receives response
 func (s *OrderPlaceWsService) SyncDo(requestID string, request *OrderPlaceWsRequest) (*CreateOrderWsResponse, error) {
-	rawData, err := websocket.CreateRequest(
-		websocket.NewRequestData(
-			requestID,
-			s.ApiKey,
-			s.SecretKey,
-			s.TimeOffset,
-			s.KeyType,
-		),
-		websocket.OrderPlaceFuturesWsApiMethod,
-		request.buildParams(),
-	)
+	rawData, err := s.buildRequest(requestID, request)
 	if err != nil {
 		return nil, err
 	}
@@ -300,6 +295,23 @@ func (s *OrderPlaceWsService) SyncDo(requestID string, request *OrderPlaceWsRequ
 	}
 
 	return createOrderWsResponse, nil
+}
+
+// SyncDoContext sends 'order.place' with caller cancellation/deadline semantics.
+func (s *OrderPlaceWsService) SyncDoContext(ctx context.Context, requestID string, request *OrderPlaceWsRequest) (*CreateOrderWsResponse, error) {
+	rawData, err := s.buildRequest(requestID, request)
+	if err != nil {
+		return nil, err
+	}
+	response, err := writeLegacyWSAPISyncContext(ctx, s.c, requestID, rawData, websocket.WriteSyncWsTimeout)
+	if err != nil {
+		return nil, err
+	}
+	result := &CreateOrderWsResponse{}
+	if err := json.Unmarshal(response, result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // ReceiveAllDataBeforeStop waits until all responses will be received from websocket until timeout expired

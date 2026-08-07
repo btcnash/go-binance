@@ -1,6 +1,7 @@
 package futures
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -121,6 +122,22 @@ func (s *WsAccountService) SyncGetAccountInfo(requestID string) (*WsAccountV2Inf
 	return info, nil
 }
 
+func (s *WsAccountService) SyncGetAccountInfoContext(ctx context.Context, requestID string) (*WsAccountV2InfoResponse, error) {
+	rawData, err := s.buildRequest(requestID, AccountV2InfoMethod)
+	if err != nil {
+		return nil, err
+	}
+	response, err := writeLegacyWSAPISyncContext(ctx, s.c, requestID, rawData, websocket.WriteSyncWsTimeout)
+	if err != nil {
+		return nil, err
+	}
+	info := &WsAccountV2InfoResponse{}
+	if err := json.Unmarshal(response, info); err != nil {
+		return nil, err
+	}
+	return info, nil
+}
+
 func (s *WsAccountService) GetAccountBalance(requestID string) error {
 	rawData, err := s.buildRequest(requestID, AccountV2BalanceMethod)
 	if err != nil {
@@ -150,6 +167,22 @@ func (s *WsAccountService) SyncGetAccountBalance(requestID string) (*WsAccountV2
 		return nil, err
 	}
 
+	return balance, nil
+}
+
+func (s *WsAccountService) SyncGetAccountBalanceContext(ctx context.Context, requestID string) (*WsAccountV2BalanceResponse, error) {
+	rawData, err := s.buildRequest(requestID, AccountV2BalanceMethod)
+	if err != nil {
+		return nil, err
+	}
+	response, err := writeLegacyWSAPISyncContext(ctx, s.c, requestID, rawData, websocket.WriteSyncWsTimeout)
+	if err != nil {
+		return nil, err
+	}
+	balance := &WsAccountV2BalanceResponse{}
+	if err := json.Unmarshal(response, balance); err != nil {
+		return nil, err
+	}
 	return balance, nil
 }
 

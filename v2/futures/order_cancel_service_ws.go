@@ -1,6 +1,7 @@
 package futures
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -114,9 +115,8 @@ func NewOrderCancelWsServiceWithSession(session *managedfutures.Session, apiKey,
 	}, nil
 }
 
-// Do - sends 'order.cancel' request
-func (s *OrderCancelWsService) Do(requestID string, request *OrderCancelRequest) error {
-	rawData, err := websocket.CreateRequest(
+func (s *OrderCancelWsService) buildRequest(requestID string, request *OrderCancelRequest) ([]byte, error) {
+	return websocket.CreateRequest(
 		websocket.NewRequestData(
 			requestID,
 			s.ApiKey,
@@ -127,6 +127,11 @@ func (s *OrderCancelWsService) Do(requestID string, request *OrderCancelRequest)
 		websocket.CancelFuturesWsApiMethod,
 		request.buildParams(),
 	)
+}
+
+// Do - sends 'order.cancel' request
+func (s *OrderCancelWsService) Do(requestID string, request *OrderCancelRequest) error {
+	rawData, err := s.buildRequest(requestID, request)
 	if err != nil {
 		return err
 	}
@@ -140,17 +145,7 @@ func (s *OrderCancelWsService) Do(requestID string, request *OrderCancelRequest)
 
 // SyncDo - sends 'order.cancel' request and receives response
 func (s *OrderCancelWsService) SyncDo(requestID string, request *OrderCancelRequest) (*OrderCancelWsResponse, error) {
-	rawData, err := websocket.CreateRequest(
-		websocket.NewRequestData(
-			requestID,
-			s.ApiKey,
-			s.SecretKey,
-			s.TimeOffset,
-			s.KeyType,
-		),
-		websocket.CancelFuturesWsApiMethod,
-		request.buildParams(),
-	)
+	rawData, err := s.buildRequest(requestID, request)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +161,23 @@ func (s *OrderCancelWsService) SyncDo(requestID string, request *OrderCancelRequ
 	}
 
 	return cancelOrderWsResponse, nil
+}
+
+// SyncDoContext sends 'order.cancel' with caller cancellation/deadline semantics.
+func (s *OrderCancelWsService) SyncDoContext(ctx context.Context, requestID string, request *OrderCancelRequest) (*OrderCancelWsResponse, error) {
+	rawData, err := s.buildRequest(requestID, request)
+	if err != nil {
+		return nil, err
+	}
+	response, err := writeLegacyWSAPISyncContext(ctx, s.c, requestID, rawData, websocket.WriteSyncWsTimeout)
+	if err != nil {
+		return nil, err
+	}
+	result := &OrderCancelWsResponse{}
+	if err := json.Unmarshal(response, result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // ReceiveAllDataBeforeStop waits until all responses will be received from websocket until timeout expired

@@ -124,6 +124,42 @@ func (c *ManagedClient) WriteSync(id string, data []byte, timeout time.Duration)
 	return append([]byte(nil), response.Payload...), nil
 }
 
+// WriteSyncContext sends data through the managed API session while preserving
+// both caller cancellation and the managed client's own lifetime. Request
+// outcome classification remains owned by Session.Do.
+func (c *ManagedClient) WriteSyncContext(ctx context.Context, id string, data []byte, timeout time.Duration) ([]byte, error) {
+	request, err := legacyAPIRequest(id, data)
+	if err != nil {
+		return nil, err
+	}
+	if ctx == nil {
+		return nil, apiws.ErrInvalidRequest
+	}
+
+	combinedCtx, cancelCombined := context.WithCancel(ctx)
+	stopClientCancel := context.AfterFunc(c.ctx, cancelCombined)
+	if c.ctx.Err() != nil {
+		cancelCombined()
+	}
+	defer func() {
+		stopClientCancel()
+		cancelCombined()
+	}()
+
+	requestCtx := combinedCtx
+	cancelTimeout := func() {}
+	if timeout > 0 {
+		requestCtx, cancelTimeout = context.WithTimeout(combinedCtx, timeout)
+	}
+	defer cancelTimeout()
+
+	response, err := c.session.Do(requestCtx, request)
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte(nil), response.Payload...), nil
+}
+
 func legacyAPIRequest(id string, data []byte) (apiws.Request, error) {
 	if id == "" || len(data) == 0 {
 		return apiws.Request{}, apiws.ErrInvalidRequest

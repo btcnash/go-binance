@@ -988,3 +988,16 @@ func TestDefaultPrivateEndpointUsesUnifiedEnvironment(t *testing.T) {
 		t.Fatalf("explicit endpoint = %q", explicit.Endpoint)
 	}
 }
+
+func TestBuildPrivateEndpointIsolatedWithoutEventsUsesPathListenKey(t *testing.T) {
+	endpoint, err := buildPrivateEndpoint("wss://example.test", ModeIsolated, []sourceBinding{{
+		SourceID:  "account-1",
+		ListenKey: "listen-key-1",
+	}})
+	if err != nil {
+		t.Fatalf("buildPrivateEndpoint() error = %v", err)
+	}
+	if got, want := endpoint, "wss://example.test/private/ws/listen-key-1"; got != want {
+		t.Fatalf("endpoint = %q, want %q", got, want)
+	}
+}

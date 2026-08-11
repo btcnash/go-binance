@@ -46,6 +46,10 @@ func (s *baseTestSuite) assertReq(f func(r *request)) {
 	s.client.assertReq = f
 }
 
+func (s *baseTestSuite) assertHTTPReq(f func(r *http.Request)) {
+	s.client.assertHTTPReq = f
+}
+
 func (s *baseTestSuite) assertRequestEqual(e, a *request) {
 	s.assertURLValuesEqual(e.query, a.query)
 	s.assertURLValuesEqual(e.form, a.form)
@@ -110,7 +114,8 @@ type assertReqFunc func(r *request)
 type mockedClient struct {
 	mock.Mock
 	*Client
-	assertReq assertReqFunc
+	assertReq     assertReqFunc
+	assertHTTPReq func(*http.Request)
 }
 
 func newMockedClient(apiKey, secretKey string) *mockedClient {
@@ -120,6 +125,9 @@ func newMockedClient(apiKey, secretKey string) *mockedClient {
 }
 
 func (m *mockedClient) do(req *http.Request) (*http.Response, error) {
+	if m.assertHTTPReq != nil {
+		m.assertHTTPReq(req)
+	}
 	if m.assertReq != nil {
 		r := newRequest()
 		r.query = req.URL.Query()

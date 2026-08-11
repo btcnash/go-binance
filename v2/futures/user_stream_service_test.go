@@ -1,6 +1,7 @@
 package futures
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -22,7 +23,12 @@ func (s *userStreamServiceTestSuite) TestStartUserStream() {
 	defer s.assertDo()
 
 	s.assertReq(func(r *request) {
-		s.assertRequestEqual(newSignedRequest(), r)
+		s.assertRequestEqual(newRequest(), r)
+	})
+	s.assertHTTPReq(func(r *http.Request) {
+		s.r().Equal(http.MethodPost, r.Method)
+		s.r().Equal("/fapi/v1/listenKey", r.URL.Path)
+		s.r().Equal(s.apiKey, r.Header.Get("X-MBX-APIKEY"))
 	})
 
 	listenKey, err := s.client.NewStartUserStreamService().Do(newContext())
@@ -37,7 +43,12 @@ func (s *userStreamServiceTestSuite) TestKeepaliveUserStream() {
 
 	listenKey := "dummykey"
 	s.assertReq(func(r *request) {
-		s.assertRequestEqual(newSignedRequest().setFormParam("listenKey", listenKey), r)
+		s.assertRequestEqual(newRequest(), r)
+	})
+	s.assertHTTPReq(func(r *http.Request) {
+		s.r().Equal(http.MethodPut, r.Method)
+		s.r().Equal("/fapi/v1/listenKey", r.URL.Path)
+		s.r().Equal(s.apiKey, r.Header.Get("X-MBX-APIKEY"))
 	})
 
 	err := s.client.NewKeepaliveUserStreamService().ListenKey(listenKey).Do(newContext())
@@ -51,7 +62,12 @@ func (s *userStreamServiceTestSuite) TestCloseUserStream() {
 
 	listenKey := "dummykey"
 	s.assertReq(func(r *request) {
-		s.assertRequestEqual(newSignedRequest().setFormParam("listenKey", listenKey), r)
+		s.assertRequestEqual(newRequest(), r)
+	})
+	s.assertHTTPReq(func(r *http.Request) {
+		s.r().Equal(http.MethodDelete, r.Method)
+		s.r().Equal("/fapi/v1/listenKey", r.URL.Path)
+		s.r().Equal(s.apiKey, r.Header.Get("X-MBX-APIKEY"))
 	})
 
 	err := s.client.NewCloseUserStreamService().ListenKey(listenKey).Do(newContext())

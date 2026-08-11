@@ -351,6 +351,13 @@ func buildPrivateEndpoint(root string, mode Mode, bindings []sourceBinding) (str
 	} else {
 		root += "/private"
 	}
+	if mode == ModeIsolated && len(bindings) == 1 && len(bindings[0].Events) == 0 {
+		listenKey := strings.TrimSpace(bindings[0].ListenKey)
+		if listenKey == "" {
+			return "", invalidOption("listen key is required")
+		}
+		return root + "/ws/" + url.PathEscape(listenKey), nil
+	}
 	path := "/ws"
 	if mode == ModeShared {
 		path = "/stream"

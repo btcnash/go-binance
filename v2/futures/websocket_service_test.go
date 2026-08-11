@@ -1660,6 +1660,28 @@ func (s *websocketServiceTestSuite) assertCompositeIndexEvent(e, a *WsCompositeI
 	}
 }
 
+func (s *websocketServiceTestSuite) TestWsUserDataServeUsesPathListenKeyEndpoint() {
+	var endpoint string
+	wsServe = func(cfg *WsConfig, _ WsHandler, _ ErrHandler) (doneC, stopC chan struct{}, err error) {
+		endpoint = cfg.Endpoint
+		doneC = make(chan struct{})
+		stopC = make(chan struct{})
+		go func() {
+			<-stopC
+			close(doneC)
+		}()
+		return doneC, stopC, nil
+	}
+
+	doneC, stopC, err := WsUserDataServe("fakeListenKey", func(*WsUserDataEvent) {}, func(error) {})
+	s.r().NoError(err)
+	if got, want := endpoint, getWsPrivateEndpoint()+"/fakeListenKey"; got != want {
+		s.T().Fatalf("endpoint = %q, want %q", got, want)
+	}
+	stopC <- struct{}{}
+	<-doneC
+}
+
 func (s *websocketServiceTestSuite) testWsUserDataServe(data []byte, expectedEvent *WsUserDataEvent) {
 	fakeErrMsg := "fake error"
 	s.mockWsServe(data, errors.New(fakeErrMsg))

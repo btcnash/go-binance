@@ -377,50 +377,27 @@ client.TimeOffset = 123
 
 ### Testnet
 
-You can use the testnet by enabling the corresponding flag.
+Spot, USD(S)-M Futures, and COIN-M Futures share one process-wide environment setting. Set it before creating clients or WebSocket sessions.
 
-> Note that you can't use your regular API and Secret keys for the testnet. You have to create an account on
-> the testnet websites : [https://testnet.binancefuture.com/](https://testnet.binancefuture.com/) for futures and delivery
-> or [https://testnet.binance.vision/](https://testnet.binance.vision/) for the Spot Test Network.
-
-#### Spot
-
-Use the `binance.UseTestnet` flag before calling the client creation and the websockets methods.
+> Note that you can't use your regular API and Secret keys for the testnet. You have to create testnet credentials for the corresponding Binance environment.
 
 ```go
 import (
-    "github.com/btcnash/go-binance/v2"
-)
-
-binance.UseTestnet = true
-client := binance.NewClient(apiKey, secretKey)
-```
-
-#### Futures (usd(s)-m futures)
-
-Use the `futures.UseTestnet` flag before calling the client creation and the websockets methods
-
-```go
-import (
+    binance "github.com/btcnash/go-binance/v2"
     "github.com/btcnash/go-binance/v2/futures"
-)
-
-futures.UseTestnet = true
-BinanceClient = futures.NewClient(ApiKey, SecretKey)
-```
-
-#### Delivery (coin-m futures)
-
-Use the `delivery.UseTestnet` flag before calling the client creation and the websockets methods
-
-```go
-import (
     "github.com/btcnash/go-binance/v2/delivery"
 )
 
-delivery.UseTestnet = true
-BinanceClient = delivery.NewClient(ApiKey, SecretKey)
+if err := binance.SetEnvironment(binance.EnvironmentTestnet); err != nil {
+    panic(err)
+}
+
+spotClient := binance.NewClient(apiKey, secretKey)
+futuresClient := futures.NewClient(apiKey, secretKey)
+deliveryClient := delivery.NewClient(apiKey, secretKey)
 ```
+
+Use `binance.EnvironmentMainnet` to switch all supported default endpoints back to production. Explicit endpoint overrides, where supported, continue to take precedence over the global environment.
 
 #### Websocket client
 ##### Order place

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/btcnash/go-binance/v2/futures"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 	"github.com/gorilla/websocket"
 )
 
@@ -52,15 +53,16 @@ func TestLegacyFuturesStreamUsesManagedReconnect(t *testing.T) {
 	}))
 	defer server.Close()
 
-	oldBase := futures.BaseWsMarketMainUrl
-	oldTestnet, oldDemo := futures.UseTestnet, futures.UseDemo
 	oldKeepalive := futures.WebsocketKeepalive
-	futures.BaseWsMarketMainUrl = "ws" + strings.TrimPrefix(server.URL, "http") + "/market/ws"
-	futures.UseTestnet, futures.UseDemo = false, false
+	profile := networkenv.USDM(networkenv.Mainnet)
+	profile.MarketRaw = "ws" + strings.TrimPrefix(server.URL, "http") + "/market/ws"
+	restoreProfile := networkenv.OverrideUSDMForTesting(networkenv.Mainnet, profile)
+	previousEnv := networkenv.Current()
+	_ = networkenv.Set(networkenv.Mainnet)
 	futures.WebsocketKeepalive = false
 	defer func() {
-		futures.BaseWsMarketMainUrl = oldBase
-		futures.UseTestnet, futures.UseDemo = oldTestnet, oldDemo
+		restoreProfile()
+		_ = networkenv.Set(previousEnv)
 		futures.WebsocketKeepalive = oldKeepalive
 	}()
 
@@ -114,15 +116,16 @@ func TestLegacyCombinedStreamPreservesCombinedEnvelope(t *testing.T) {
 	}))
 	defer server.Close()
 
-	oldBase := futures.BaseCombinedMarketMainURL
-	oldTestnet, oldDemo := futures.UseTestnet, futures.UseDemo
 	oldKeepalive := futures.WebsocketKeepalive
-	futures.BaseCombinedMarketMainURL = "ws" + strings.TrimPrefix(server.URL, "http") + "/market/stream?streams="
-	futures.UseTestnet, futures.UseDemo = false, false
+	profile := networkenv.USDM(networkenv.Mainnet)
+	profile.MarketCombined = "ws" + strings.TrimPrefix(server.URL, "http") + "/market/stream"
+	restoreProfile := networkenv.OverrideUSDMForTesting(networkenv.Mainnet, profile)
+	previousEnv := networkenv.Current()
+	_ = networkenv.Set(networkenv.Mainnet)
 	futures.WebsocketKeepalive = false
 	defer func() {
-		futures.BaseCombinedMarketMainURL = oldBase
-		futures.UseTestnet, futures.UseDemo = oldTestnet, oldDemo
+		restoreProfile()
+		_ = networkenv.Set(previousEnv)
 		futures.WebsocketKeepalive = oldKeepalive
 	}()
 
@@ -169,15 +172,16 @@ func TestLegacyPrivateStreamUsesManagedReconnect(t *testing.T) {
 	}))
 	defer server.Close()
 
-	oldBase := futures.BaseWsPrivateMainUrl
-	oldTestnet, oldDemo := futures.UseTestnet, futures.UseDemo
 	oldKeepalive := futures.WebsocketKeepalive
-	futures.BaseWsPrivateMainUrl = "ws" + strings.TrimPrefix(server.URL, "http") + "/private/ws"
-	futures.UseTestnet, futures.UseDemo = false, false
+	profile := networkenv.USDM(networkenv.Mainnet)
+	profile.PrivateRaw = "ws" + strings.TrimPrefix(server.URL, "http") + "/private/ws"
+	restoreProfile := networkenv.OverrideUSDMForTesting(networkenv.Mainnet, profile)
+	previousEnv := networkenv.Current()
+	_ = networkenv.Set(networkenv.Mainnet)
 	futures.WebsocketKeepalive = false
 	defer func() {
-		futures.BaseWsPrivateMainUrl = oldBase
-		futures.UseTestnet, futures.UseDemo = oldTestnet, oldDemo
+		restoreProfile()
+		_ = networkenv.Set(previousEnv)
 		futures.WebsocketKeepalive = oldKeepalive
 	}()
 

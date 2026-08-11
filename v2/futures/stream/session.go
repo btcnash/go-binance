@@ -12,6 +12,7 @@ import (
 
 	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
 	managedgorilla "github.com/btcnash/go-binance/v2/common/websocket/managed/gorilla"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 )
 
 const (
@@ -31,21 +32,6 @@ const (
 	methodSetProperty       = "SET_PROPERTY"
 	methodGetProperty       = "GET_PROPERTY"
 )
-
-var dynamicEndpoints = map[Environment]map[StreamClass]string{
-	EnvironmentMainnet: {
-		StreamClassPublic: "wss://fstream.binance.com/public/stream",
-		StreamClassMarket: "wss://fstream.binance.com/market/stream",
-	},
-	EnvironmentTestnet: {
-		StreamClassPublic: "wss://stream.binancefuture.com/public/stream",
-		StreamClassMarket: "wss://stream.binancefuture.com/market/stream",
-	},
-	EnvironmentDemo: {
-		StreamClassPublic: "wss://fstream.binancefuture.com/public/stream",
-		StreamClassMarket: "wss://fstream.binancefuture.com/market/stream",
-	},
-}
 
 type pendingRequest struct {
 	generation uint64
@@ -153,12 +139,6 @@ func normalizeStreamOptions(opts StreamSessionOptions) (StreamSessionOptions, er
 	if opts.DeliveryPolicy != DeliveryPolicyStrict && opts.DeliveryPolicy != DeliveryPolicyLatestByStream {
 		return StreamSessionOptions{}, fmt.Errorf("%w: unsupported policy %q", ErrInvalidDeliveryPolicy, opts.DeliveryPolicy)
 	}
-	if opts.Environment == "" {
-		opts.Environment = EnvironmentMainnet
-	}
-	if _, ok := dynamicEndpoints[opts.Environment]; !ok {
-		return StreamSessionOptions{}, fmt.Errorf("%w: unsupported environment %q", ErrInvalidStreamOptions, opts.Environment)
-	}
 	if opts.AckTimeout < 0 || opts.RequestInterval < 0 || opts.MaxBatchSize < 0 || opts.MaxStreams < 0 || opts.EventBuffer < 0 || opts.StateBuffer < 0 || opts.ErrorBuffer < 0 || opts.GapBuffer < 0 || opts.ObserverBuffer < 0 {
 		return StreamSessionOptions{}, fmt.Errorf("%w: durations and capacities must not be negative", ErrInvalidStreamOptions)
 	}
@@ -207,7 +187,12 @@ func normalizeStreamOptions(opts StreamSessionOptions) (StreamSessionOptions, er
 	if opts.ConnectionOptions.Dialer == nil {
 		endpoint := strings.TrimSpace(opts.Endpoint)
 		if endpoint == "" {
-			endpoint = dynamicEndpoints[opts.Environment][opts.Class]
+			profile := networkenv.USDM(networkenv.Current())
+			if opts.Class == StreamClassPublic {
+				endpoint = profile.PublicCombined
+			} else {
+				endpoint = profile.MarketCombined
+			}
 		}
 		opts.ConnectionOptions.Dialer = managedgorilla.Dialer{
 			Endpoint:  endpoint,

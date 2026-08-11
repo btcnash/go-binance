@@ -14,6 +14,7 @@ import (
 	gorillaws "github.com/gorilla/websocket"
 
 	"github.com/btcnash/go-binance/v2/futures"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 )
 
 type fakeProvider struct {
@@ -102,12 +103,11 @@ func TestPrivateSessionSingleSourceLifecycle(t *testing.T) {
 
 	provider := &fakeProvider{keys: []string{"listen-key-1"}}
 	session, err := NewSession(SessionOptions{
-		Mode:        ModeIsolated,
-		Environment: EnvironmentMainnet,
-		Endpoint:    websocketRoot(server),
-		Sources:     []Source{{ID: "account-1", Provider: provider, Events: []futures.UserDataEventType{futures.UserDataEventTypeAccountUpdate}}},
-		KeepAlive:   KeepAliveOptions{Interval: 25 * time.Millisecond, Timeout: 20 * time.Millisecond, MaxAttempts: 1},
-		Connection:  testConnectionOptions(),
+		Mode:       ModeIsolated,
+		Endpoint:   websocketRoot(server),
+		Sources:    []Source{{ID: "account-1", Provider: provider, Events: []futures.UserDataEventType{futures.UserDataEventTypeAccountUpdate}}},
+		KeepAlive:  KeepAliveOptions{Interval: 25 * time.Millisecond, Timeout: 20 * time.Millisecond, MaxAttempts: 1},
+		Connection: testConnectionOptions(),
 	})
 	if err != nil {
 		t.Fatalf("NewSession() error = %v", err)
@@ -950,5 +950,41 @@ func TestFastFirstEventThenDisconnectStillPublishesGap(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for disconnect gap")
+	}
+}
+
+func TestDefaultPrivateEndpointUsesUnifiedEnvironment(t *testing.T) {
+	previous := networkenv.Current()
+	t.Cleanup(func() { _ = networkenv.Set(previous) })
+	source := Source{ID: "account-1", Provider: &fakeProvider{keys: []string{"key-1"}}}
+
+	if err := networkenv.Set(networkenv.Mainnet); err != nil {
+		t.Fatal(err)
+	}
+	mainnet, err := normalizeOptions(SessionOptions{Mode: ModeIsolated, Sources: []Source{source}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := mainnet.Endpoint, "wss://fstream.binance.com"; got != want {
+		t.Fatalf("mainnet private root = %q, want %q", got, want)
+	}
+
+	if err := networkenv.Set(networkenv.Testnet); err != nil {
+		t.Fatal(err)
+	}
+	testnet, err := normalizeOptions(SessionOptions{Mode: ModeIsolated, Sources: []Source{source}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := testnet.Endpoint, "wss://demo-fstream.binance.com"; got != want {
+		t.Fatalf("testnet private root = %q, want %q", got, want)
+	}
+
+	explicit, err := normalizeOptions(SessionOptions{Mode: ModeIsolated, Endpoint: "ws://custom", Sources: []Source{source}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if explicit.Endpoint != "ws://custom" {
+		t.Fatalf("explicit endpoint = %q", explicit.Endpoint)
 	}
 }

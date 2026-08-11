@@ -6,13 +6,16 @@ import (
 	"log"
 	"time"
 
+	binance "github.com/btcnash/go-binance/v2"
 	"github.com/btcnash/go-binance/v2/futures/stream"
 )
 
 func main() {
+	if err := binance.SetEnvironment(binance.EnvironmentTestnet); err != nil {
+		log.Fatal(err)
+	}
 	session, err := stream.NewStreamSession(stream.StreamSessionOptions{
-		Environment: stream.EnvironmentDemo,
-		Class:       stream.StreamClassMarket,
+		Class: stream.StreamClassMarket,
 		InitialSubscriptions: []stream.Subscription{
 			stream.AggTrade("BTCUSDT"),
 			stream.MarkPrice("BTCUSDT", time.Second),

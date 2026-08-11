@@ -13,15 +13,6 @@ import (
 	"github.com/btcnash/go-binance/v2/futures"
 )
 
-// Environment selects the Binance deployment used when Endpoint is empty.
-type Environment string
-
-const (
-	EnvironmentMainnet Environment = "mainnet"
-	EnvironmentTestnet Environment = "testnet"
-	EnvironmentDemo    Environment = "demo"
-)
-
 // Mode controls whether one physical connection represents exactly one source
 // or multiple listen keys. Isolated mode deliberately requires one source so
 // callers can contain one account's failures to one session.
@@ -140,8 +131,7 @@ func (f EndpointDialFunc) Dial(ctx context.Context, endpoint string) (managedws.
 
 // SessionOptions configure a private user-data session.
 type SessionOptions struct {
-	Mode        Mode
-	Environment Environment
+	Mode Mode
 
 	// Endpoint is a root such as wss://fstream.binance.com or a local test
 	// server. The session appends /private/ws or /private/stream.

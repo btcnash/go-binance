@@ -11,25 +11,28 @@ import (
 
 	apiws "github.com/btcnash/go-binance/v2/common/websocket/api"
 	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 	"github.com/gorilla/websocket"
 )
 
 func TestResolveEndpoint(t *testing.T) {
-	cases := []struct {
-		env  Environment
-		want string
-	}{{EnvironmentMainnet, MainnetEndpoint}, {EnvironmentTestnet, TestnetEndpoint}, {EnvironmentDemo, DemoEndpoint}, {"", MainnetEndpoint}}
-	for _, tc := range cases {
-		got, err := resolveEndpoint(tc.env, "")
-		if err != nil || got != tc.want {
-			t.Fatalf("resolveEndpoint(%q)=%q,%v want %q", tc.env, got, err, tc.want)
-		}
+	previous := networkenv.Current()
+	t.Cleanup(func() { _ = networkenv.Set(previous) })
+
+	if err := networkenv.Set(networkenv.Mainnet); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := resolveEndpoint("bad", ""); err == nil {
-		t.Fatal("unsupported environment accepted")
+	if got, want := resolveEndpoint(""), "wss://ws-fapi.binance.com/ws-fapi/v1"; got != want {
+		t.Fatalf("mainnet endpoint = %q, want %q", got, want)
 	}
-	if got, err := resolveEndpoint("bad", "ws://custom"); err != nil || got != "ws://custom" {
-		t.Fatalf("explicit endpoint=%q,%v", got, err)
+	if err := networkenv.Set(networkenv.Testnet); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := resolveEndpoint(""), "wss://testnet.binancefuture.com/ws-fapi/v1"; got != want {
+		t.Fatalf("testnet endpoint = %q, want %q", got, want)
+	}
+	if got := resolveEndpoint("ws://custom"); got != "ws://custom" {
+		t.Fatalf("explicit endpoint = %q", got)
 	}
 }
 

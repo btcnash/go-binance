@@ -25,6 +25,14 @@ func SetupTest(t *testing.T) *baseIntegrationTestSuite {
 		t.Skip("API key and secret are required for integration tests")
 	}
 
+	if useTestnet {
+		if err := SetEnvironment(EnvironmentTestnet); err != nil {
+			t.Fatal(err)
+		}
+	} else if err := SetEnvironment(EnvironmentMainnet); err != nil {
+		t.Fatal(err)
+	}
+
 	var client *Client
 	if proxyURL != "" {
 		client = NewProxiedClient(apiKey, secretKey, proxyURL)
@@ -33,7 +41,6 @@ func SetupTest(t *testing.T) *baseIntegrationTestSuite {
 	}
 
 	client.Debug = true
-	UseTestnet = useTestnet // Set the global testnet flag
 
 	return &baseIntegrationTestSuite{
 		client: client,

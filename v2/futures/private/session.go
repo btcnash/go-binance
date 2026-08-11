@@ -13,6 +13,7 @@ import (
 
 	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
 	"github.com/btcnash/go-binance/v2/futures"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 )
 
 const (
@@ -146,15 +147,9 @@ func normalizeOptions(opts SessionOptions) (SessionOptions, error) {
 	if opts.Mode != ModeIsolated && opts.Mode != ModeShared {
 		return SessionOptions{}, invalidOption("mode must be isolated or shared")
 	}
-	if opts.Environment == "" {
-		opts.Environment = EnvironmentMainnet
-	}
-	root, ok := privateRoots[opts.Environment]
-	if !ok {
-		return SessionOptions{}, invalidOption("unsupported environment %q", opts.Environment)
-	}
 	if strings.TrimSpace(opts.Endpoint) == "" {
-		opts.Endpoint = root
+		privateRaw := networkenv.USDM(networkenv.Current()).PrivateRaw
+		opts.Endpoint = strings.TrimSuffix(privateRaw, "/private/ws")
 	}
 	if opts.EndpointDialer == nil {
 		opts.EndpointDialer = gorillaEndpointDialer{}

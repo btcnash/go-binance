@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/btcnash/go-binance/v2/common"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 
 	"github.com/bitly/go-simplejson"
 )
@@ -62,13 +63,6 @@ type UserDataEventType string
 
 // UserDataEventReasonType define reason type for user data event
 type UserDataEventReasonType string
-
-// Endpoints
-var (
-	BaseApiMainUrl    = "https://dapi.binance.com"
-	BaseApiTestnetUrl = "https://testnet.binancefuture.com"
-	BaseApiDemoURL    = "https://demo-dapi.binance.com"
-)
 
 // Global enums
 const (
@@ -176,15 +170,9 @@ func newJSON(data []byte) (j *simplejson.Json, err error) {
 	return j, nil
 }
 
-// getApiEndpoint return the base endpoint of the WS according the UseTestnet flag
+// getApiEndpoint returns the COIN-M REST base endpoint for the configured environment.
 func getApiEndpoint() string {
-	if UseTestnet {
-		return BaseApiTestnetUrl
-	}
-	if UseDemo {
-		return BaseApiDemoURL
-	}
-	return BaseApiMainUrl
+	return networkenv.COINM(networkenv.Current()).REST
 }
 
 // NewClient initialize an API client instance with API key and secret key.

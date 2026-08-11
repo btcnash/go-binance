@@ -2,16 +2,13 @@
 package wsapi
 
 import (
-	"fmt"
 	"time"
 
 	apiws "github.com/btcnash/go-binance/v2/common/websocket/api"
 	managedws "github.com/btcnash/go-binance/v2/common/websocket/managed"
 	managedgorilla "github.com/btcnash/go-binance/v2/common/websocket/managed/gorilla"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 )
-
-// Environment selects the Binance Futures deployment when Endpoint is empty.
-type Environment string
 
 // Re-export the managed API request surface for Futures callers.
 type Session = apiws.Session
@@ -30,26 +27,13 @@ const (
 )
 
 const (
-	EnvironmentMainnet Environment = "mainnet"
-	EnvironmentTestnet Environment = "testnet"
-	EnvironmentDemo    Environment = "demo"
-)
-
-const (
-	MainnetEndpoint = "wss://ws-fapi.binance.com/ws-fapi/v1"
-	TestnetEndpoint = "wss://testnet.binancefuture.com/ws-fapi/v1"
-	DemoEndpoint    = "wss://testnet.binancefuture.com/ws-fapi/v1"
-)
-
-const (
 	defaultRotationAge  = 23*time.Hour + 50*time.Minute
 	defaultDrainTimeout = 30 * time.Second
 )
 
 // Options configure a managed Futures WebSocket API session.
 type Options struct {
-	Environment Environment
-	Endpoint    string
+	Endpoint string
 
 	API apiws.Options
 
@@ -63,10 +47,7 @@ type Options struct {
 // automatic reconnect, and proactive replacement before Binance's 24-hour
 // connection lifetime.
 func NewSession(opts Options) (*Session, error) {
-	endpoint, err := resolveEndpoint(opts.Environment, opts.Endpoint)
-	if err != nil {
-		return nil, err
-	}
+	endpoint := resolveEndpoint(opts.Endpoint)
 	apiOptions := opts.API
 	if apiOptions.ConnectionOptions.Dialer == nil {
 		apiOptions.ConnectionOptions.Dialer = managedgorilla.Dialer{Endpoint: endpoint}
@@ -83,21 +64,9 @@ func NewSession(opts Options) (*Session, error) {
 	return apiws.NewSession(apiOptions)
 }
 
-func resolveEndpoint(environment Environment, explicit string) (string, error) {
+func resolveEndpoint(explicit string) string {
 	if explicit != "" {
-		return explicit, nil
+		return explicit
 	}
-	if environment == "" {
-		environment = EnvironmentMainnet
-	}
-	switch environment {
-	case EnvironmentMainnet:
-		return MainnetEndpoint, nil
-	case EnvironmentTestnet:
-		return TestnetEndpoint, nil
-	case EnvironmentDemo:
-		return DemoEndpoint, nil
-	default:
-		return "", fmt.Errorf("%w: unsupported environment %q", apiws.ErrInvalidOptions, environment)
-	}
+	return networkenv.USDM(networkenv.Current()).WSAPI
 }

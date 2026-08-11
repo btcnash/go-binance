@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	binance "github.com/btcnash/go-binance/v2"
 	"github.com/btcnash/go-binance/v2/futures"
 	privatews "github.com/btcnash/go-binance/v2/futures/private"
 )
@@ -18,13 +19,14 @@ func main() {
 		log.Fatal("BINANCE_API_KEY and BINANCE_SECRET_KEY are required")
 	}
 
+	if err := binance.SetEnvironment(binance.EnvironmentTestnet); err != nil {
+		log.Fatal(err)
+	}
 	client := futures.NewClient(apiKey, secret)
-	client.BaseURL = futures.BaseApiDemoURL
 	session, err := privatews.NewSession(privatews.SessionOptions{
-		Mode:        privatews.ModeIsolated,
-		Environment: privatews.EnvironmentDemo,
+		Mode: privatews.ModeIsolated,
 		Sources: []privatews.Source{{
-			ID:       "demo-account",
+			ID:       "testnet-account",
 			Provider: privatews.RESTListenKeyProvider{Client: client},
 			Events: []futures.UserDataEventType{
 				futures.UserDataEventTypeAccountUpdate,

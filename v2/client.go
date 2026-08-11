@@ -19,6 +19,7 @@ import (
 	"github.com/btcnash/go-binance/v2/common"
 	"github.com/btcnash/go-binance/v2/delivery"
 	"github.com/btcnash/go-binance/v2/futures"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 	"github.com/btcnash/go-binance/v2/options"
 )
 
@@ -122,13 +123,6 @@ type FuturesAlgoUrgencyType string
 // FutureAlgoOrderStatusType define future algo order status
 type FuturesAlgoOrderStatusType string
 
-// Endpoints
-var (
-	BaseAPIMainURL    = "https://api.binance.com"
-	BaseAPITestnetURL = "https://testnet.binance.vision"
-	BaseAPIDemoURL    = "https://demo-api.binance.com"
-)
-
 // SelfTradePreventionMode define self trade prevention strategy
 type SelfTradePreventionMode string
 
@@ -136,12 +130,6 @@ type SelfTradePreventionMode string
 type CancelReplaceMode string
 
 type MarginAccountBorrowRepayType string
-
-// UseTestnet switch all the API endpoints from production to the testnet
-var UseTestnet = false
-
-// UseDemo switch all the API endpoints from production to the demo
-var UseDemo = false
 
 // Global enums
 const (
@@ -360,15 +348,9 @@ func newJSON(data []byte) (j *simplejson.Json, err error) {
 	return j, nil
 }
 
-// getAPIEndpoint return the base endpoint of the Rest API according the UseTestnet flag
+// getAPIEndpoint returns the Spot REST base endpoint for the configured environment.
 func getAPIEndpoint() string {
-	if UseTestnet {
-		return BaseAPITestnetURL
-	}
-	if UseDemo {
-		return BaseAPIDemoURL
-	}
-	return BaseAPIMainURL
+	return networkenv.Spot(networkenv.Current()).REST
 }
 
 // NewClient initialize an API client instance with API key and secret key.

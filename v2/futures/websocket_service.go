@@ -7,41 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 	"github.com/gorilla/websocket"
-)
-
-// Endpoints
-var (
-	BaseWsMainUrl          = "wss://fstream.binance.com/ws"
-	BaseWsTestnetUrl       = "wss://stream.binancefuture.com/ws"
-	BaseWsDemoURL          = "wss://fstream.binancefuture.com/ws"
-	BaseCombinedMainURL    = "wss://fstream.binance.com/stream?streams="
-	BaseCombinedTestnetURL = "wss://stream.binancefuture.com/stream?streams="
-	BaseCombinedDemoURL    = "wss://fstream.binancefuture.com/stream?streams="
-	BaseWsApiMainURL       = "wss://ws-fapi.binance.com/ws-fapi/v1"
-	BaseWsApiTestnetURL    = "wss://testnet.binancefuture.com/ws-fapi/v1"
-	BaseWsApiDemoURL       = "wss://testnet.binancefuture.com/ws-fapi/v1"
-
-	// Public endpoints (high-frequency public market data: bookTicker, depth)
-	BaseWsPublicMainUrl          = "wss://fstream.binance.com/public/ws"
-	BaseWsPublicTestnetUrl       = "wss://stream.binancefuture.com/public/ws"
-	BaseWsPublicDemoURL          = "wss://fstream.binancefuture.com/public/ws"
-	BaseCombinedPublicMainURL    = "wss://fstream.binance.com/public/stream?streams="
-	BaseCombinedPublicTestnetURL = "wss://stream.binancefuture.com/public/stream?streams="
-	BaseCombinedPublicDemoURL    = "wss://fstream.binancefuture.com/public/stream?streams="
-
-	// Market endpoints (regular market data: aggTrade, markPrice, kline, ticker, etc.)
-	BaseWsMarketMainUrl          = "wss://fstream.binance.com/market/ws"
-	BaseWsMarketTestnetUrl       = "wss://stream.binancefuture.com/market/ws"
-	BaseWsMarketDemoURL          = "wss://fstream.binancefuture.com/market/ws"
-	BaseCombinedMarketMainURL    = "wss://fstream.binance.com/market/stream?streams="
-	BaseCombinedMarketTestnetURL = "wss://stream.binancefuture.com/market/stream?streams="
-	BaseCombinedMarketDemoURL    = "wss://fstream.binancefuture.com/market/stream?streams="
-
-	// Private endpoints (user data streams)
-	BaseWsPrivateMainUrl    = "wss://fstream.binance.com/private/ws"
-	BaseWsPrivateTestnetUrl = "wss://stream.binancefuture.com/private/ws"
-	BaseWsPrivateDemoURL    = "wss://fstream.binancefuture.com/private/ws"
 )
 
 var (
@@ -51,10 +18,6 @@ var (
 	WebsocketPongTimeout = 3 * time.Second
 	// WebsocketKeepalive enables sending ping/pong messages to check the connection stability
 	WebsocketKeepalive = true
-	// UseTestnet switch all the WS streams from production to the testnet
-	UseTestnet = false
-	// UseDemo switch all the WS streams from production to the demo
-	UseDemo = false
 	// WebsocketTimeoutReadWriteConnection is an interval for sending ping/pong messages if WebsocketKeepalive is enabled
 	// using for websocket API (read/write)
 	WebsocketTimeoutReadWriteConnection = time.Second * 10
@@ -72,81 +35,29 @@ func SetWsProxyUrl(url string) {
 	ProxyUrl = url
 }
 
-// getWsEndpoint return the base endpoint of the WS according the UseTestnet flag
-func getWsEndpoint() string {
-	if UseTestnet {
-		return BaseWsTestnetUrl
-	}
-	if UseDemo {
-		return BaseWsDemoURL
-	}
-	return BaseWsMainUrl
-}
-
-// getCombinedEndpoint return the base endpoint of the combined stream according the UseTestnet flag
-func getCombinedEndpoint() string {
-	if UseTestnet {
-		return BaseCombinedTestnetURL
-	}
-	if UseDemo {
-		return BaseCombinedDemoURL
-	}
-	return BaseCombinedMainURL
-}
-
-// getWsPublicEndpoint return the base endpoint for high-frequency public data (bookTicker, depth)
+// getWsPublicEndpoint returns the routed public raw endpoint.
 func getWsPublicEndpoint() string {
-	if UseTestnet {
-		return BaseWsPublicTestnetUrl
-	}
-	if UseDemo {
-		return BaseWsPublicDemoURL
-	}
-	return BaseWsPublicMainUrl
+	return networkenv.USDM(networkenv.Current()).PublicRaw
 }
 
-// getCombinedPublicEndpoint return the combined stream endpoint for public data
+// getCombinedPublicEndpoint returns the routed public combined endpoint prefix.
 func getCombinedPublicEndpoint() string {
-	if UseTestnet {
-		return BaseCombinedPublicTestnetURL
-	}
-	if UseDemo {
-		return BaseCombinedPublicDemoURL
-	}
-	return BaseCombinedPublicMainURL
+	return networkenv.USDM(networkenv.Current()).PublicCombined + "?streams="
 }
 
-// getWsMarketEndpoint return the base endpoint for regular market data (aggTrade, markPrice, kline, ticker, etc.)
+// getWsMarketEndpoint returns the routed market raw endpoint.
 func getWsMarketEndpoint() string {
-	if UseTestnet {
-		return BaseWsMarketTestnetUrl
-	}
-	if UseDemo {
-		return BaseWsMarketDemoURL
-	}
-	return BaseWsMarketMainUrl
+	return networkenv.USDM(networkenv.Current()).MarketRaw
 }
 
-// getCombinedMarketEndpoint return the combined stream endpoint for market data
+// getCombinedMarketEndpoint returns the routed market combined endpoint prefix.
 func getCombinedMarketEndpoint() string {
-	if UseTestnet {
-		return BaseCombinedMarketTestnetURL
-	}
-	if UseDemo {
-		return BaseCombinedMarketDemoURL
-	}
-	return BaseCombinedMarketMainURL
+	return networkenv.USDM(networkenv.Current()).MarketCombined + "?streams="
 }
 
-// getWsPrivateEndpoint return the base endpoint for private user data streams
+// getWsPrivateEndpoint returns the routed private raw endpoint.
 func getWsPrivateEndpoint() string {
-	if UseTestnet {
-		return BaseWsPrivateTestnetUrl
-	}
-	if UseDemo {
-		return BaseWsPrivateDemoURL
-	}
-	return BaseWsPrivateMainUrl
+	return networkenv.USDM(networkenv.Current()).PrivateRaw
 }
 
 // WsAggTradeEvent define websocket aggTrde event.
@@ -1749,13 +1660,7 @@ func WsApiInitReadWriteConn() (*websocket.Conn, error) {
 	return conn, err
 }
 
-// getWsApiEndpoint return the base endpoint of the API WS according the UseTestnet flag
+// getWsApiEndpoint returns the USDⓈ-M WebSocket API endpoint.
 func getWsApiEndpoint() string {
-	if UseTestnet {
-		return BaseWsApiTestnetURL
-	}
-	if UseDemo {
-		return BaseWsApiDemoURL
-	}
-	return BaseWsApiMainURL
+	return networkenv.USDM(networkenv.Current()).WSAPI
 }

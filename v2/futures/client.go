@@ -16,6 +16,7 @@ import (
 	"github.com/bitly/go-simplejson"
 
 	"github.com/btcnash/go-binance/v2/common"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 )
 
 // SideType define side type of order
@@ -75,13 +76,6 @@ type ForceOrderCloseType string
 
 // SelfTradePreventionMode define self trade prevention strategy
 type SelfTradePreventionMode string
-
-// Endpoints
-var (
-	BaseApiMainUrl    = "https://fapi.binance.com"
-	BaseApiTestnetUrl = "https://testnet.binancefuture.com"
-	BaseApiDemoURL    = "https://testnet.binancefuture.com"
-)
 
 // Global enums
 const (
@@ -215,15 +209,9 @@ func newJSON(data []byte) (j *simplejson.Json, err error) {
 	return j, nil
 }
 
-// getApiEndpoint return the base endpoint of the WS according the UseTestnet flag
+// getApiEndpoint returns the USDⓈ-M REST base endpoint for the configured environment.
 func getApiEndpoint() string {
-	if UseTestnet {
-		return BaseApiTestnetUrl
-	}
-	if UseDemo {
-		return BaseApiDemoURL
-	}
-	return BaseApiMainUrl
+	return networkenv.USDM(networkenv.Current()).REST
 }
 
 // NewClient initialize an API client instance with API key and secret key.

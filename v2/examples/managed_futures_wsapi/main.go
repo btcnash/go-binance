@@ -6,11 +6,15 @@ import (
 	"log"
 	"time"
 
+	binance "github.com/btcnash/go-binance/v2"
 	futureswsapi "github.com/btcnash/go-binance/v2/futures/wsapi"
 )
 
 func main() {
-	session, err := futureswsapi.NewSession(futureswsapi.Options{Environment: futureswsapi.EnvironmentDemo})
+	if err := binance.SetEnvironment(binance.EnvironmentTestnet); err != nil {
+		log.Fatal(err)
+	}
+	session, err := futureswsapi.NewSession(futureswsapi.Options{})
 	if err != nil {
 		log.Fatal(err)
 	}

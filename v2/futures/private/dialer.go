@@ -16,12 +16,6 @@ import (
 	"github.com/btcnash/go-binance/v2/futures"
 )
 
-var privateRoots = map[Environment]string{
-	EnvironmentMainnet: "wss://fstream.binance.com",
-	EnvironmentTestnet: "wss://stream.binancefuture.com",
-	EnvironmentDemo:    "wss://fstream.binancefuture.com",
-}
-
 type gorillaEndpointDialer struct{}
 
 func (gorillaEndpointDialer) Dial(ctx context.Context, endpoint string) (managedws.Socket, error) {

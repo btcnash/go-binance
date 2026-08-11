@@ -3,9 +3,10 @@ package stream
 import (
 	"errors"
 	"testing"
+	"time"
 
 	managedgorilla "github.com/btcnash/go-binance/v2/common/websocket/managed/gorilla"
-	"time"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 )
 
 func TestSubscriptionBuildersAndClassValidation(t *testing.T) {
@@ -50,27 +51,52 @@ func TestSubscriptionBuildersAndClassValidation(t *testing.T) {
 }
 
 func TestDefaultDynamicEndpointAndTransportDefaults(t *testing.T) {
-	public, err := normalizeStreamOptions(StreamSessionOptions{Class: StreamClassPublic, Environment: EnvironmentMainnet})
-	if err != nil {
-		t.Fatalf("normalize public options: %v", err)
-	}
-	publicDialer, ok := public.ConnectionOptions.Dialer.(managedgorilla.Dialer)
-	if !ok {
-		t.Fatalf("public dialer type = %T", public.ConnectionOptions.Dialer)
-	}
-	if publicDialer.Endpoint != "wss://fstream.binance.com/public/stream" {
-		t.Fatalf("public endpoint = %q", publicDialer.Endpoint)
-	}
-	if !public.ConnectionOptions.Heartbeat.Enabled || !public.ConnectionOptions.Reconnect.Enabled {
-		t.Fatal("managed heartbeat/reconnect defaults are not enabled")
+	previous := networkenv.Current()
+	t.Cleanup(func() { _ = networkenv.Set(previous) })
+
+	tests := []struct {
+		name     string
+		env      networkenv.Environment
+		class    StreamClass
+		expected string
+	}{
+		{name: "mainnet public", env: networkenv.Mainnet, class: StreamClassPublic, expected: "wss://fstream.binance.com/public/stream"},
+		{name: "mainnet market", env: networkenv.Mainnet, class: StreamClassMarket, expected: "wss://fstream.binance.com/market/stream"},
+		{name: "testnet public", env: networkenv.Testnet, class: StreamClassPublic, expected: "wss://demo-fstream.binance.com/public/stream"},
+		{name: "testnet market", env: networkenv.Testnet, class: StreamClassMarket, expected: "wss://demo-fstream.binance.com/market/stream"},
 	}
 
-	market, err := normalizeStreamOptions(StreamSessionOptions{Class: StreamClassMarket, Environment: EnvironmentDemo})
-	if err != nil {
-		t.Fatalf("normalize market options: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := networkenv.Set(tt.env); err != nil {
+				t.Fatal(err)
+			}
+			opts, err := normalizeStreamOptions(StreamSessionOptions{Class: tt.class})
+			if err != nil {
+				t.Fatalf("normalize options: %v", err)
+			}
+			dialer, ok := opts.ConnectionOptions.Dialer.(managedgorilla.Dialer)
+			if !ok {
+				t.Fatalf("dialer type = %T", opts.ConnectionOptions.Dialer)
+			}
+			if dialer.Endpoint != tt.expected {
+				t.Fatalf("endpoint = %q, want %q", dialer.Endpoint, tt.expected)
+			}
+			if !opts.ConnectionOptions.Heartbeat.Enabled || !opts.ConnectionOptions.Reconnect.Enabled {
+				t.Fatal("managed heartbeat/reconnect defaults are not enabled")
+			}
+		})
 	}
-	marketDialer := market.ConnectionOptions.Dialer.(managedgorilla.Dialer)
-	if marketDialer.Endpoint != "wss://fstream.binancefuture.com/market/stream" {
-		t.Fatalf("market endpoint = %q", marketDialer.Endpoint)
+
+	if err := networkenv.Set(networkenv.Testnet); err != nil {
+		t.Fatal(err)
+	}
+	explicit, err := normalizeStreamOptions(StreamSessionOptions{Class: StreamClassMarket, Endpoint: "ws://custom"})
+	if err != nil {
+		t.Fatalf("normalize explicit options: %v", err)
+	}
+	explicitDialer := explicit.ConnectionOptions.Dialer.(managedgorilla.Dialer)
+	if explicitDialer.Endpoint != "ws://custom" {
+		t.Fatalf("explicit endpoint = %q", explicitDialer.Endpoint)
 	}
 }

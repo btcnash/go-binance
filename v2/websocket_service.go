@@ -8,22 +8,14 @@ import (
 	"time"
 
 	"github.com/btcnash/go-binance/v2/common/websocket"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 	"github.com/google/uuid"
 	gorilla "github.com/gorilla/websocket"
 )
 
 var (
-	// Endpoints
-	BaseWsMainURL          = "wss://stream.binance.com:9443/ws"
-	BaseWsTestnetURL       = "wss://stream.testnet.binance.vision/ws"
-	BaseWsDemoURL          = "wss://demo-stream.binance.com/ws"
-	BaseCombinedMainURL    = "wss://stream.binance.com:9443/stream?streams="
-	BaseCombinedTestnetURL = "wss://stream.testnet.binance.vision/stream?streams="
-	BaseCombinedDemoURL    = "wss://demo-stream.binance.com/stream?streams="
-	BaseWsApiMainURL       = "wss://ws-api.binance.com:443/ws-api/v3"
-	BaseWsApiTestnetURL    = "wss://ws-api.testnet.binance.vision/ws-api/v3"
-	BaseWsApiDemoURL       = "wss://demo-ws-api.binance.com/ws-api/v3"
-	BaseWsAnnouncementURL  = "wss://api.binance.com/sapi/wss"
+	// BaseWsAnnouncementURL is mainnet-only and is not part of the environment-switched endpoint profile.
+	BaseWsAnnouncementURL = "wss://api.binance.com/sapi/wss"
 
 	// WebsocketTimeout is an interval for sending ping/pong messages if WebsocketKeepalive is enabled
 	WebsocketTimeout = time.Second * 600
@@ -50,26 +42,14 @@ func SetWsProxyUrl(url string) {
 	ProxyUrl = url
 }
 
-// getWsEndpoint return the base endpoint of the WS according the UseTestnet flag
+// getWsEndpoint returns the Spot raw stream endpoint for the configured environment.
 func getWsEndpoint() string {
-	if UseTestnet {
-		return BaseWsTestnetURL
-	}
-	if UseDemo {
-		return BaseWsDemoURL
-	}
-	return BaseWsMainURL
+	return networkenv.Spot(networkenv.Current()).WSRaw
 }
 
-// getCombinedEndpoint return the base endpoint of the combined stream according the UseTestnet flag
+// getCombinedEndpoint returns the Spot combined stream endpoint prefix.
 func getCombinedEndpoint() string {
-	if UseTestnet {
-		return BaseCombinedTestnetURL
-	}
-	if UseDemo {
-		return BaseCombinedDemoURL
-	}
-	return BaseCombinedMainURL
+	return networkenv.Spot(networkenv.Current()).WSCombined + "?streams="
 }
 
 // WsPartialDepthEvent define websocket partial depth book event
@@ -1139,8 +1119,8 @@ type WsAnnouncementHandler func(event *WsAnnouncementEvent)
 //	stopC - Channel that can be closed to stop the connection
 //	err - Any initial connection error
 func WsAnnouncementServe(params WsAnnouncementParam, handler WsAnnouncementHandler, errHandler ErrHandler) (doneC, stopC chan struct{}, err error) {
-	if UseTestnet || UseDemo {
-		return nil, nil, errors.New("testnet or demo is not supported")
+	if networkenv.Current() == networkenv.Testnet {
+		return nil, nil, errors.New("testnet is not supported")
 	}
 	endpoint := fmt.Sprintf("%s?random=%s&topic=%s&recvWindow=%d&timestamp=%d&signature=%s",
 		BaseWsAnnouncementURL, params.Random, params.Topic, params.RecvWindow, params.Timestamp, params.Signature,
@@ -1181,13 +1161,7 @@ func WsAnnouncementServe(params WsAnnouncementParam, handler WsAnnouncementHandl
 	return wsServeWithConnHandler(cfg, wsHandler, errHandler, keepAliveWithPing(30*time.Second, WebsocketTimeout))
 }
 
-// getWsApiEndpoint return the base endpoint of the API WS according the UseTestnet flag
+// getWsApiEndpoint returns the Spot WebSocket API endpoint for the configured environment.
 func getWsApiEndpoint() string {
-	if UseTestnet {
-		return BaseWsApiTestnetURL
-	}
-	if UseDemo {
-		return BaseWsApiDemoURL
-	}
-	return BaseWsApiMainURL
+	return networkenv.Spot(networkenv.Current()).WSAPI
 }

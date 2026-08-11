@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/btcnash/go-binance/v2/futures"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 	"github.com/gorilla/websocket"
 )
 
@@ -39,13 +40,14 @@ func TestLegacyFuturesWSAPIUsesManagedSession(t *testing.T) {
 	}))
 	defer server.Close()
 
-	oldEndpoint := futures.BaseWsApiMainURL
-	oldTestnet, oldDemo := futures.UseTestnet, futures.UseDemo
-	futures.BaseWsApiMainURL = "ws" + strings.TrimPrefix(server.URL, "http")
-	futures.UseTestnet, futures.UseDemo = false, false
+	profile := networkenv.USDM(networkenv.Mainnet)
+	profile.WSAPI = "ws" + strings.TrimPrefix(server.URL, "http")
+	restoreProfile := networkenv.OverrideUSDMForTesting(networkenv.Mainnet, profile)
+	previousEnv := networkenv.Current()
+	_ = networkenv.Set(networkenv.Mainnet)
 	defer func() {
-		futures.BaseWsApiMainURL = oldEndpoint
-		futures.UseTestnet, futures.UseDemo = oldTestnet, oldDemo
+		restoreProfile()
+		_ = networkenv.Set(previousEnv)
 	}()
 
 	client := futures.NewClient("api-key", "secret-key")

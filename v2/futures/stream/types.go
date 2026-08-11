@@ -32,15 +32,6 @@ const (
 	DeliveryPolicyLatestByStream DeliveryPolicy = "latest_by_stream"
 )
 
-// Environment selects the Binance deployment used when Endpoint is empty.
-type Environment string
-
-const (
-	EnvironmentMainnet Environment = "mainnet"
-	EnvironmentTestnet Environment = "testnet"
-	EnvironmentDemo    Environment = "demo"
-)
-
 // StreamSessionState is the logical subscription-session lifecycle. Transport
 // readiness alone is insufficient: Ready is emitted only after desired
 // subscriptions have been acknowledged for the current physical generation.
@@ -158,15 +149,14 @@ func (o StreamObserverFuncs) OnGap(event GapEvent) {
 
 // StreamSessionOptions configure a Public or Market dynamic stream session.
 type StreamSessionOptions struct {
-	Class       StreamClass
-	Environment Environment
-	Endpoint    string
+	Class    StreamClass
+	Endpoint string
 
 	InitialSubscriptions []Subscription
 	DeliveryPolicy       DeliveryPolicy
 
 	// ConnectionOptions are passed to the M1 managed transport. When Dialer is
-	// nil, a Gorilla dialer is created for Endpoint/Class/Environment.
+	// nil, a Gorilla dialer is created for Endpoint/Class.
 	ConnectionOptions managedws.Options
 	DisableHeartbeat  bool
 	DisableReconnect  bool

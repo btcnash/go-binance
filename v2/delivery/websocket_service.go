@@ -7,13 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-)
 
-// Endpoints
-var (
-	BaseWsMainUrl    = "wss://dstream.binance.com/ws"
-	BaseWsTestnetUrl = "wss://dstream.binancefuture.com/ws"
-	BaseWsDemoURL    = "wss://dstream.binancefuture.com/ws"
+	"github.com/btcnash/go-binance/v2/internal/networkenv"
 )
 
 var (
@@ -23,22 +18,12 @@ var (
 	WebsocketPongTimeout = time.Second * 10
 	// WebsocketKeepalive enables sending ping/pong messages to check the connection stability
 	WebsocketKeepalive = true
-	// UseTestnet switch all the WS streams from production to the testnet
-	UseTestnet = false
-	// UseDemo switch all the API endpoints from production to the demo
-	UseDemo  = false
-	ProxyUrl = ""
+	ProxyUrl           = ""
 )
 
-// getWsEndpoint return the base endpoint of the WS according the UseTestnet flag
+// getWsEndpoint returns the COIN-M raw stream endpoint for the configured environment.
 func getWsEndpoint() string {
-	if UseTestnet {
-		return BaseWsTestnetUrl
-	}
-	if UseDemo {
-		return BaseWsDemoURL
-	}
-	return BaseWsMainUrl
+	return networkenv.COINM(networkenv.Current()).WSRaw
 }
 
 func getWsProxyUrl() *string {

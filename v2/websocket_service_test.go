@@ -886,7 +886,7 @@ func (s *websocketServiceTestSuite) assertUserDataEvent(e, a *WsUserDataEvent) {
 
 func (s *websocketServiceTestSuite) TestWsUserDataServeUsesPathListenKeyEndpoint() {
 	var endpoint string
-	wsServe = func(cfg *WsConfig, _ WsHandler, _ ErrHandler) (doneC, stopC chan struct{}, err error) {
+	wsServeWithConnHandler = func(cfg *WsConfig, _ WsHandler, _ ErrHandler, _ ConnHandler) (doneC, stopC chan struct{}, err error) {
 		endpoint = cfg.Endpoint
 		doneC = make(chan struct{})
 		stopC = make(chan struct{})

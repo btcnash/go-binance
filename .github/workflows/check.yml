@@ -55,11 +55,7 @@ jobs:
       env:
         BINANCE_RUN_LIVE_WS_SMOKE: '1'
       run: go test -v -count=1 -run 'TestTestnet(PublicStreamEventAndActivePong|WSAPITimeAndActivePong)$' ./internal/livesmoke
-    - name: Testnet private Stream smoke
-      if: github.event_name != 'pull_request'
-      working-directory: ./v2
-      env:
-        BINANCE_RUN_LIVE_WS_SMOKE: '1'
-        BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
-        BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
-      run: go test -v -count=1 -run '^TestTestnetPrivateConnectAndActivePong$' ./internal/livesmoke
+    # Authenticated Private Stream smoke remains available in v2/internal/livesmoke.
+    # Do not run it on GitHub-hosted runners: Binance may reject their egress
+    # region before the SDK can acquire a Testnet listenKey. Run it manually
+    # from an eligible network when authenticated live verification is needed.

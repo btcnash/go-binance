@@ -17,7 +17,7 @@ jobs:
       - uses: crate-ci/typos@v1.22.7
         with:
           config: ./typos.toml
-          
+
   UnitTest:
     runs-on: ubuntu-latest
     steps:
@@ -34,5 +34,32 @@ jobs:
       run: ./check.sh vet
     - name: UnitTest
       run: ./check.sh unittest
+    # The historical integration suite remains intentionally disabled here.
+    # It mixes tagged and untagged tests and depends on account state/credentials.
     # - name: IntegrationTest
     #   run: ./check.sh integration
+
+  TestnetLiveSmoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup Go
+      uses: actions/setup-go@v3
+      with:
+        go-version-file: './v2/go.mod'
+        cache: true
+        cache-dependency-path: './v2/go.sum'
+    - name: Testnet public Stream and WSAPI smoke
+      working-directory: ./v2
+      env:
+        BINANCE_RUN_LIVE_WS_SMOKE: '1'
+      run: go test -v -count=1 -run 'TestTestnet(PublicStreamEventAndActivePong|WSAPITimeAndActivePong)$' ./internal/livesmoke
+    - name: Testnet private Stream smoke
+      if: github.event_name != 'pull_request'
+      working-directory: ./v2
+      env:
+        BINANCE_RUN_LIVE_WS_SMOKE: '1'
+        BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+        BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
+      run: go test -v -count=1 -run '^TestTestnetPrivateConnectAndActivePong$' ./internal/livesmoke

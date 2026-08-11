@@ -304,6 +304,53 @@ func TestStreamSessionReconnectRestoresLatestDesiredAndWaitsForACK(t *testing.T)
 	}
 }
 
+func TestStreamSessionInterruptReconnectsAndRestoresDesiredSubscriptions(t *testing.T) {
+	server := newLocalStreamServer(t)
+	session := newTestStreamSession(t, server, []Subscription{AggTrade("BTCUSDT")}, nil)
+	if err := session.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	initialSubscribe := server.waitRequest(t)
+	writeJSON(t, server.latestConn(t), map[string]interface{}{"result": nil, "id": initialSubscribe.ID})
+	waitStreamState(t, session.States(), StreamStateReady, time.Second)
+	initialGeneration := session.Generation()
+
+	if err := session.Interrupt(errors.New("test requested reconnect")); err != nil {
+		t.Fatalf("Interrupt() error = %v", err)
+	}
+	waitStreamState(t, session.States(), StreamStateDisconnected, time.Second)
+
+	restored := server.waitRequest(t)
+	if restored.Method != methodSubscribe {
+		t.Fatalf("restore method = %s, want SUBSCRIBE", restored.Method)
+	}
+	params := restored.stringParams(t)
+	if len(params) != 1 || params[0] != "btcusdt@aggTrade" {
+		t.Fatalf("restored params = %v, want [btcusdt@aggTrade]", params)
+	}
+	assertNoStreamState(t, session.States(), StreamStateReady, 30*time.Millisecond)
+	writeJSON(t, server.latestConn(t), map[string]interface{}{"result": nil, "id": restored.ID})
+	waitStreamState(t, session.States(), StreamStateReady, time.Second)
+
+	if generation := session.Generation(); generation <= initialGeneration {
+		t.Fatalf("generation = %d, want greater than %d", generation, initialGeneration)
+	}
+	active := session.ActiveSubscriptions()
+	if len(active) != 1 || active[0].String() != "btcusdt@aggTrade" {
+		t.Fatalf("active subscriptions = %v, want [btcusdt@aggTrade]", active)
+	}
+}
+
+func TestStreamSessionInterruptRequiresReadySession(t *testing.T) {
+	server := newLocalStreamServer(t)
+	session := newTestStreamSession(t, server, nil, nil)
+
+	if err := session.Interrupt(errors.New("test")); !errors.Is(err, managedws.ErrNotReady) {
+		t.Fatalf("Interrupt() error = %v, want ErrNotReady", err)
+	}
+}
+
 func TestStreamSessionRejectsWrongClassWithoutSending(t *testing.T) {
 	server := newLocalStreamServer(t)
 	session := newTestStreamSession(t, server, nil, nil)

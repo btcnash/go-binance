@@ -340,6 +340,12 @@ func (s *StreamSession) ActiveSubscriptions() []Subscription {
 	return sortedSubscriptions(s.active)
 }
 
+// Interrupt fails the current physical connection so the managed connection
+// can reconnect the same logical session and restore its desired subscriptions.
+func (s *StreamSession) Interrupt(cause error) error {
+	return s.conn.Interrupt(cause)
+}
+
 // Subscribe adds streams to desired state and waits until they are active.
 func (s *StreamSession) Subscribe(ctx context.Context, subscriptions ...Subscription) error {
 	if err := validateCallContext(ctx); err != nil {

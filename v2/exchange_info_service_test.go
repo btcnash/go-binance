@@ -298,7 +298,7 @@ func (s *exchangeInfoServiceTestSuite) assertExchangeInfoEqual(e, a *ExchangeInf
 			r.Equal(e.Symbols[i].IcebergAllowed, currentSymbol.IcebergAllowed, "IcebergAllowed")
 			r.Len(currentSymbol.Filters, len(e.Symbols[i].Filters))
 
-			for fi, currentFilter := range currentSymbol.Filters {
+			for _, currentFilter := range currentSymbol.Filters {
 				switch currentFilter.FilterType {
 				case "PRICE_FILTER":
 					r.Equal(e.Symbols[i].PriceFilter().MinPrice, currentSymbol.PriceFilter().MinPrice, "MinPrice")

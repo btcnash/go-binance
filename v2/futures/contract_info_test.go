@@ -52,8 +52,8 @@ func TestWsContractInfoEventUnmarshalOfficialFixture(t *testing.T) {
 	}
 
 	bracket := event.Brackets[0]
-	if bracket.Bracket != 1 || bracket.NotionalFloor != 0 || bracket.NotionalCap != 5000 ||
-		bracket.MaintMarginRatio != 0.01 || bracket.Cum != 0 || bracket.MinLeverage != 21 || bracket.MaxLeverage != 50 {
+	if bracket.Bracket != 1 || bracket.NotionalFloor != "0" || bracket.NotionalCap != "5000" ||
+		bracket.MaintMarginRatio != "0.01" || bracket.Cum != "0" || bracket.MinLeverage != 21 || bracket.MaxLeverage != 50 {
 		t.Fatalf("Bracket = %#v", bracket)
 	}
 

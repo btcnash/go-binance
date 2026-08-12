@@ -90,7 +90,7 @@ func (s *exchangeInfoServiceTestSuite) TestExchangeInfo() {
 			  "limit": 300
 		  }
 		]
-	  }	  
+	  }  
 	`)
 	s.mockDo(data, nil)
 	defer s.assertDo()
@@ -212,7 +212,7 @@ func (s *exchangeInfoServiceTestSuite) assertExchangeInfoEqual(e, a *ExchangeInf
 		r.Equal(e.OptionSymbols[i].QuantityScale, a.OptionSymbols[i].QuantityScale, "QuantityScale")
 		r.Equal(e.OptionSymbols[i].QuoteAsset, a.OptionSymbols[i].QuoteAsset, "QuoteAsset")
 
-		for fi, currentFilter := range a.OptionSymbols[i].Filters {
+		for _, currentFilter := range a.OptionSymbols[i].Filters {
 			switch currentFilter.FilterType {
 			case "PRICE_FILTER":
 				r.Equal(e.OptionSymbols[i].PriceFilter().MinPrice, a.OptionSymbols[i].PriceFilter().MinPrice, "MinPrice")

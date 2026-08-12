@@ -235,7 +235,7 @@ func (s *exchangeInfoServiceTestSuite) assertExchangeInfoEqual(e, a *ExchangeInf
 		r.Equal(e.Symbols[i].QuantityPrecision, a.Symbols[i].QuantityPrecision, "QuantityPrecision")
 		r.Equal(e.Symbols[i].RequiredMarginPercent, a.Symbols[i].RequiredMarginPercent, "RequiredMarginPercent")
 
-		for fi, currentFilter := range a.Symbols[i].Filters {
+		for _, currentFilter := range a.Symbols[i].Filters {
 			switch currentFilter.FilterType {
 			case "PRICE_FILTER":
 				r.Equal(e.Symbols[i].PriceFilter().MinPrice, a.Symbols[i].PriceFilter().MinPrice, "MinPrice")

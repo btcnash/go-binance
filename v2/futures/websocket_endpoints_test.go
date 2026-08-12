@@ -1138,7 +1138,7 @@ func TestWsEndpoints_UnifiedTestnet_Market_BLVTInfo(t *testing.T) {
 
 	// BLVT tokens may not be active on testnet; just verify connection holds
 	doneC, stopC, err := WsBLVTInfoServe("BTCDOWN", func(e *WsBLVTInfoEvent) {
-		fmt.Printf("  [testnet/market] BLVT tokenNav symbol=%s nav=%f leverage=%f\n",
+		fmt.Printf("  [testnet/market] BLVT tokenNav symbol=%s nav=%s leverage=%s\n",
 			e.Symbol, e.Nav, e.Leverage)
 	}, func(err error) { t.Logf("err: %v", err) })
 	if err != nil {

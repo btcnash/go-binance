@@ -249,7 +249,7 @@ func (s *exchangeInfoServiceTestSuite) assertExchangeInfoEqual(e, a *ExchangeInf
 		r.Equal(e.Symbols[i].SettlePlan, a.Symbols[i].SettlePlan, "SettlePlan")
 		r.Equal(e.Symbols[i].TriggerProtect, a.Symbols[i].TriggerProtect, "TriggerProtect")
 
-		for fi, currentFilter := range a.Symbols[i].Filters {
+		for _, currentFilter := range a.Symbols[i].Filters {
 			switch currentFilter.FilterType {
 			case "PRICE_FILTER":
 				r.Equal(e.Symbols[i].PriceFilter().MinPrice, a.Symbols[i].PriceFilter().MinPrice, "MinPrice")

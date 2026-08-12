@@ -124,7 +124,7 @@ func (s *exchangeInfoServiceTestSuite) TestExchangeInfo() {
 			{RateLimitType: "ORDERS", Interval: "SECOND", IntervalNum: 10, Limit: 10},
 			{RateLimitType: "ORDERS", Interval: "DAY", IntervalNum: 1, Limit: 100000},
 		},
-		ExchangeFilters: []any{},
+		ExchangeFilters: []ExchangeFilter{},
 		Symbols: []Symbol{
 			{
 				Symbol:                 "ETHBTC",
@@ -138,16 +138,16 @@ func (s *exchangeInfoServiceTestSuite) TestExchangeInfo() {
 				OcoAllowed:             true,
 				IsSpotTradingAllowed:   true,
 				IsMarginTradingAllowed: false,
-				Filters: []map[string]any{
-					{"filterType": "PRICE_FILTER", "minPrice": "0.00001000", "maxPrice": "922327.00000000", "tickSize": "0.00001000"},
-					{"filterType": "LOT_SIZE", "minQty": "0.00010000", "maxQty": "100000.00000000", "stepSize": "0.00010000"},
-					{"filterType": "ICEBERG_PARTS", "limit": 10},
-					{"filterType": "MARKET_LOT_SIZE", "minQty": "0.00000000", "maxQty": "3373.58569748", "stepSize": "0.00000000"},
-					{"filterType": "TRAILING_DELTA", "minTrailingAboveDelta": 10, "maxTrailingAboveDelta": 2000, "minTrailingBelowDelta": 10, "maxTrailingBelowDelta": 2000},
-					{"filterType": "PERCENT_PRICE_BY_SIDE", "bidMultiplierUp": "5", "bidMultiplierDown": "0.2", "askMultiplierUp": "5", "askMultiplierDown": "0.2", "avgPriceMins": 5},
-					{"filterType": "NOTIONAL", "minNotional": "0.00010000", "applyMinToMarket": true, "maxNotional": "9000000.00000000", "applyMaxToMarket": false, "avgPriceMins": 5},
-					{"filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200},
-					{"filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5},
+				Filters: []Filter{
+					{FilterType: "PRICE_FILTER", MinPrice: "0.00001000", MaxPrice: "922327.00000000", TickSize: "0.00001000"},
+					{FilterType: "LOT_SIZE", MinQty: "0.00010000", MaxQty: "100000.00000000", StepSize: "0.00010000"},
+					{FilterType: "ICEBERG_PARTS", Limit: 10},
+					{FilterType: "MARKET_LOT_SIZE", MinQty: "0.00000000", MaxQty: "3373.58569748", StepSize: "0.00000000"},
+					{FilterType: "TRAILING_DELTA", MinTrailingAboveDelta: 10, MaxTrailingAboveDelta: 2000, MinTrailingBelowDelta: 10, MaxTrailingBelowDelta: 2000},
+					{FilterType: "PERCENT_PRICE_BY_SIDE", BidMultiplierUp: "5", BidMultiplierDown: "0.2", AskMultiplierUp: "5", AskMultiplierDown: "0.2", AvgPriceMins: 5},
+					{FilterType: "NOTIONAL", MinNotional: "0.00010000", ApplyMinToMarket: true, MaxNotional: "9000000.00000000", ApplyMaxToMarket: false, AvgPriceMins: 5},
+					{FilterType: "MAX_NUM_ORDERS", MaxNumOrders: 200},
+					{FilterType: "MAX_NUM_ALGO_ORDERS", MaxNumAlgoOrders: 5},
 				},
 				Permissions: []string{"SPOT", "MARGIN"},
 			},
@@ -299,8 +299,7 @@ func (s *exchangeInfoServiceTestSuite) assertExchangeInfoEqual(e, a *ExchangeInf
 			r.Len(currentSymbol.Filters, len(e.Symbols[i].Filters))
 
 			for fi, currentFilter := range currentSymbol.Filters {
-				r.Len(currentFilter, len(e.Symbols[i].Filters[fi]))
-				switch currentFilter["filterType"] {
+				switch currentFilter.FilterType {
 				case "PRICE_FILTER":
 					r.Equal(e.Symbols[i].PriceFilter().MinPrice, currentSymbol.PriceFilter().MinPrice, "MinPrice")
 					r.Equal(e.Symbols[i].PriceFilter().MaxPrice, currentSymbol.PriceFilter().MaxPrice, "MaxPrice")

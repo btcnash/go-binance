@@ -24,7 +24,7 @@ func (s *liquidityPoolServiceTestSuite) TestAddLiquidityService() {
 	s.assertReq(func(r *request) {
 		e := newSignedRequest().setParams(params{
 			"asset":    "BUSD",
-			"quantity": 1000,
+			"quantity": "123456789.123456789",
 			"type":     "COMBINATION",
 			"poolId":   100,
 		})
@@ -33,7 +33,7 @@ func (s *liquidityPoolServiceTestSuite) TestAddLiquidityService() {
 
 	res, err := s.client.NewAddLiquidityService().
 		QuoteAsset("BUSD").
-		QuoteQty(1000).
+		QuoteQty("123456789.123456789").
 		OperationType(LiquidityOperationTypeCombination).
 		PoolId(100).
 		Do(newContext())
@@ -153,7 +153,7 @@ func (s *liquidityPoolServiceTestSuite) TestSwapService() {
 		e := newSignedRequest().setParams(params{
 			"quoteAsset": "USDT",
 			"baseAsset":  "BUSD",
-			"quoteQty":   1000,
+			"quoteQty":   "123456789.123456789",
 		})
 		s.assertRequestEqual(e, r)
 	})
@@ -161,7 +161,7 @@ func (s *liquidityPoolServiceTestSuite) TestSwapService() {
 	res, err := s.client.NewSwapService().
 		QuoteAsset("USDT").
 		BaseAsset("BUSD").
-		QuoteQty(1000).
+		QuoteQty("123456789.123456789").
 		Do(newContext())
 	s.r().NoError(err)
 
@@ -194,7 +194,7 @@ func (s *liquidityPoolServiceTestSuite) TestGetSwapQuoteService() {
 		e := newSignedRequest().setParams(params{
 			"quoteAsset": "USDT",
 			"baseAsset":  "BUSD",
-			"quoteQty":   1000,
+			"quoteQty":   "123456789.123456789",
 		})
 		s.assertRequestEqual(e, r)
 	})
@@ -202,7 +202,7 @@ func (s *liquidityPoolServiceTestSuite) TestGetSwapQuoteService() {
 	res, err := s.client.NewGetSwapQuoteService().
 		QuoteAsset("USDT").
 		BaseAsset("BUSD").
-		QuoteQty(1000).
+		QuoteQty("123456789.123456789").
 		Do(newContext())
 	s.r().NoError(err)
 
@@ -249,7 +249,7 @@ func (s *liquidityPoolServiceTestSuite) TestAddLiquidityPreviewService() {
 			"poolId":     2,
 			"type":       LiquidityOperationTypeCombination,
 			"quoteAsset": "USDT",
-			"quoteQty":   1000,
+			"quoteQty":   "123456789.123456789",
 		})
 		s.assertRequestEqual(e, r)
 	})
@@ -258,7 +258,7 @@ func (s *liquidityPoolServiceTestSuite) TestAddLiquidityPreviewService() {
 		PoolId(2).
 		OperationType(LiquidityOperationTypeCombination).
 		QuoteAsset("USDT").
-		QuoteQty(1000).
+		QuoteQty("123456789.123456789").
 		Do(newContext())
 	s.r().NoError(err)
 
@@ -527,4 +527,30 @@ func (s *liquidityPoolServiceTestSuite) assertQueryClaimedRewardHistoryEqual(e *
 	r.Equal(e.ClaimedAmount, a.ClaimedAmount, "ClaimedAmount")
 	r.Equal(e.ClaimedAt, a.ClaimedAt, "ClaimedAt")
 	r.Equal(e.Status, a.Status, "Status")
+}
+
+func (s *liquidityPoolServiceTestSuite) TestRemoveLiquidityExactShareAmount() {
+	data := []byte(`{"operationId":12341}`)
+	s.mockDo(data, nil)
+	defer s.assertDo()
+
+	shareAmount := "123456789.123456789"
+	s.assertReq(func(r *request) {
+		e := newSignedRequest().setParams(params{
+			"poolId":      int64(2),
+			"type":        LiquidityOperationTypeCombination,
+			"asset":       []string{"USDT"},
+			"shareAmount": shareAmount,
+		})
+		s.assertRequestEqual(e, r)
+	})
+
+	res, err := s.client.NewRemoveLiquidityService().
+		PoolId(2).
+		OperationType(LiquidityOperationTypeCombination).
+		AddAesst("USDT").
+		ShareAmount(shareAmount).
+		Do(newContext())
+	s.r().NoError(err)
+	s.r().Equal(int64(12341), res.OperationId)
 }

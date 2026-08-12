@@ -120,14 +120,14 @@ func (s *savingsServiceTestSuite) TestPurchaseSavingsFlexibleProduct() {
 	s.assertReq(func(r *request) {
 		e := newSignedRequest().setParams(params{
 			"productId": "BTC001",
-			"amount":    0.52,
+			"amount":    "123456789.123456789",
 		})
 		s.assertRequestEqual(e, r)
 	})
 
 	purchaseId, err := s.client.NewPurchaseSavingsFlexibleProductService().
 		ProductId("BTC001").
-		Amount(0.52).
+		Amount("123456789.123456789").
 		Do(newContext())
 
 	r := s.r()
@@ -142,7 +142,7 @@ func (s *savingsServiceTestSuite) TestReedemSavingsFlexibleProduct() {
 	s.assertReq(func(r *request) {
 		e := newSignedRequest().setParams(params{
 			"productId": "BTC001",
-			"amount":    0.52,
+			"amount":    "123456789.123456789",
 			"type":      "FAST",
 		})
 		s.assertRequestEqual(e, r)
@@ -150,7 +150,7 @@ func (s *savingsServiceTestSuite) TestReedemSavingsFlexibleProduct() {
 
 	err := s.client.NewRedeemSavingsFlexibleProductService().
 		ProductId("BTC001").
-		Amount(0.52).
+		Amount("123456789.123456789").
 		Type("FAST").
 		Do(newContext())
 

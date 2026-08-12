@@ -122,9 +122,9 @@ func (s *exchangeInfoServiceTestSuite) TestExchangeInfo() {
 			{
 				ContractId: 2,
 				ExpiryDate: 1660521600000,
-				Filters: []map[string]any{
-					{"filterType": "PRICE_FILTER", "minPrice": "0.02", "maxPrice": "80000.01", "tickSize": "0.01"},
-					{"filterType": "LOT_SIZE", "minQty": "0.01", "maxQty": "100", "stepSize": "0.01"},
+				Filters: []Filter{
+					{FilterType: "PRICE_FILTER", MinPrice: "0.02", MaxPrice: "80000.01", TickSize: "0.01"},
+					{FilterType: "LOT_SIZE", MinQty: "0.01", MaxQty: "100", StepSize: "0.01"},
 				},
 				Id:                   17,
 				Symbol:               "BTC-220815-50000-C",
@@ -213,8 +213,7 @@ func (s *exchangeInfoServiceTestSuite) assertExchangeInfoEqual(e, a *ExchangeInf
 		r.Equal(e.OptionSymbols[i].QuoteAsset, a.OptionSymbols[i].QuoteAsset, "QuoteAsset")
 
 		for fi, currentFilter := range a.OptionSymbols[i].Filters {
-			r.Len(currentFilter, len(e.OptionSymbols[i].Filters[fi]))
-			switch currentFilter["filterType"] {
+			switch currentFilter.FilterType {
 			case "PRICE_FILTER":
 				r.Equal(e.OptionSymbols[i].PriceFilter().MinPrice, a.OptionSymbols[i].PriceFilter().MinPrice, "MinPrice")
 				r.Equal(e.OptionSymbols[i].PriceFilter().MaxPrice, a.OptionSymbols[i].PriceFilter().MaxPrice, "MaxPrice")

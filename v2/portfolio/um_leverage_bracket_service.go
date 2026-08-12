@@ -50,10 +50,10 @@ type LeverageBracket struct {
 
 // Bracket define bracket info
 type Bracket struct {
-	Bracket          int     `json:"bracket"`          // Notional bracket
-	InitialLeverage  int     `json:"initialLeverage"`  // Max initial leverage for this bracket
-	NotionalCap      float64 `json:"notionalCap"`      // Cap notional of this bracket
-	NotionalFloor    float64 `json:"notionalFloor"`    // Notional threshold of this bracket
-	MaintMarginRatio float64 `json:"maintMarginRatio"` // Maintenance ratio for this bracket
-	Cum              float64 `json:"cum"`              // Auxiliary number for quick calculation
+	Bracket          int    `json:"bracket"`          // Notional bracket
+	InitialLeverage  int    `json:"initialLeverage"`  // Max initial leverage for this bracket
+	NotionalCap      string `json:"notionalCap"`      // Cap notional of this bracket
+	NotionalFloor    string `json:"notionalFloor"`    // Notional threshold of this bracket
+	MaintMarginRatio string `json:"maintMarginRatio"` // Maintenance ratio for this bracket
+	Cum              string `json:"cum"`              // Auxiliary number for quick calculation
 }

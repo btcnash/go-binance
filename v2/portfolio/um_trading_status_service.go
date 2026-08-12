@@ -49,9 +49,9 @@ type TradingStatus struct {
 
 // Indicator define trading indicator
 type Indicator struct {
-	IsLocked           bool    `json:"isLocked"`
-	PlannedRecoverTime int64   `json:"plannedRecoverTime"`
-	Indicator          string  `json:"indicator"`    // UFR/IFER/GCR/DR/TMV
-	Value              float64 `json:"value"`        // Current value
-	TriggerValue       float64 `json:"triggerValue"` // Trigger value
+	IsLocked           bool   `json:"isLocked"`
+	PlannedRecoverTime int64  `json:"plannedRecoverTime"`
+	Indicator          string `json:"indicator"`    // UFR/IFER/GCR/DR/TMV
+	Value              string `json:"value"`        // Current value
+	TriggerValue       string `json:"triggerValue"` // Trigger value
 }

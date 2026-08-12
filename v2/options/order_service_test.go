@@ -62,18 +62,20 @@ func (s *baseOrderTestSuite) assertOrdersEqual(e, a []*Order) {
 	}
 }
 
-func (s *baseOrderTestSuite) assertOrderAndAPIErrorListEqual(e, a []any) {
+func (s *baseOrderTestSuite) assertOrderAndAPIErrorListEqual(e []any, a []BatchOrderResult) {
 	for i := range e {
 		switch ee := e[i].(type) {
 		case Order:
-			aa, ok := a[i].(Order)
-			s.r().Equal(true, ok, "convert Order failed")
-			s.assertOrderEqual(&ee, &aa)
+			if a[i].Order == nil {
+				s.r().FailNow("expected Order result")
+			}
+			s.assertOrderEqual(&ee, a[i].Order)
 		case common.APIError:
-			aa, ok := a[i].(common.APIError)
-			s.r().Equal(true, ok, "convert APIError failed")
-			s.r().Equal(ee.Code, aa.Code, "Code")
-			s.r().Equal(ee.Message, aa.Message, "Message")
+			if a[i].Error == nil {
+				s.r().FailNow("expected APIError result")
+			}
+			s.r().Equal(ee.Code, a[i].Error.Code, "Code")
+			s.r().Equal(ee.Message, a[i].Error.Message, "Message")
 		}
 	}
 }

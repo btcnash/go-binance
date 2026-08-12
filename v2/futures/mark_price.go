@@ -168,16 +168,17 @@ func (s *GetLeverageBracketService) Do(ctx context.Context, opts ...RequestOptio
 
 // LeverageBracket define the leverage bracket
 type LeverageBracket struct {
-	Symbol   string    `json:"symbol"`
-	Brackets []Bracket `json:"brackets"`
+	Symbol       string    `json:"symbol"`
+	NotionalCoef *string   `json:"notionalCoef,omitempty"`
+	Brackets     []Bracket `json:"brackets"`
 }
 
 // Bracket define the bracket
 type Bracket struct {
-	Bracket          int     `json:"bracket"`
-	InitialLeverage  int     `json:"initialLeverage"`
-	NotionalCap      float64 `json:"notionalCap"`
-	NotionalFloor    float64 `json:"notionalFloor"`
-	MaintMarginRatio float64 `json:"maintMarginRatio"`
-	Cum              float64 `json:"cum"`
+	Bracket          int    `json:"bracket"`
+	InitialLeverage  int    `json:"initialLeverage"`
+	NotionalCap      string `json:"notionalCap"`
+	NotionalFloor    string `json:"notionalFloor"`
+	MaintMarginRatio string `json:"maintMarginRatio"`
+	Cum              string `json:"cum"`
 }

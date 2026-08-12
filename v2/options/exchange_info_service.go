@@ -66,26 +66,26 @@ type OptionAsset struct {
 
 // Option Symbol
 type OptionSymbol struct {
-	ContractId           int64            `json:"contractId"`
-	ExpiryDate           int64            `json:"expiryDate"`
-	Filters              []map[string]any `json:"filters"`
-	Id                   int64            `json:"id"`
-	Symbol               string           `json:"symbol"`
-	Side                 string           `json:"side"`
-	StrikePrice          string           `json:"strikePrice"`
-	Underlying           string           `json:"underlying"`
-	Unit                 int64            `json:"unit"`
-	MakerFeeRate         string           `json:"makerFeeRate"`
-	TakerFeeRate         string           `json:"takerFeeRate"`
-	MinQty               string           `json:"minQty"`
-	MaxQty               string           `json:"maxQty"`
-	InitialMargin        string           `json:"initialMargin"`
-	MaintenanceMargin    string           `json:"maintenanceMargin"`
-	MinInitialMargin     string           `json:"minInitialMargin"`
-	MinMaintenanceMargin string           `json:"minMaintenanceMargin"`
-	PriceScale           int              `json:"priceScale"`
-	QuantityScale        int              `json:"quantityScale"`
-	QuoteAsset           string           `json:"quoteAsset"`
+	ContractId           int64    `json:"contractId"`
+	ExpiryDate           int64    `json:"expiryDate"`
+	Filters              []Filter `json:"filters"`
+	Id                   int64    `json:"id"`
+	Symbol               string   `json:"symbol"`
+	Side                 string   `json:"side"`
+	StrikePrice          string   `json:"strikePrice"`
+	Underlying           string   `json:"underlying"`
+	Unit                 int64    `json:"unit"`
+	MakerFeeRate         string   `json:"makerFeeRate"`
+	TakerFeeRate         string   `json:"takerFeeRate"`
+	MinQty               string   `json:"minQty"`
+	MaxQty               string   `json:"maxQty"`
+	InitialMargin        string   `json:"initialMargin"`
+	MaintenanceMargin    string   `json:"maintenanceMargin"`
+	MinInitialMargin     string   `json:"minInitialMargin"`
+	MinMaintenanceMargin string   `json:"minMaintenanceMargin"`
+	PriceScale           int      `json:"priceScale"`
+	QuantityScale        int      `json:"quantityScale"`
+	QuoteAsset           string   `json:"quoteAsset"`
 }
 
 // LotSizeFilter define lot size filter of symbol
@@ -104,39 +104,17 @@ type PriceFilter struct {
 
 // LotSizeFilter return lot size filter of symbol
 func (s *OptionSymbol) LotSizeFilter() *LotSizeFilter {
-	for _, filter := range s.Filters {
-		if filter["filterType"].(string) == string(SymbolFilterTypeLotSize) {
-			f := &LotSizeFilter{}
-			if i, ok := filter["maxQty"]; ok {
-				f.MaxQuantity = i.(string)
-			}
-			if i, ok := filter["minQty"]; ok {
-				f.MinQuantity = i.(string)
-			}
-			if i, ok := filter["stepSize"]; ok {
-				f.StepSize = i.(string)
-			}
-			return f
+	for _, f := range s.Filters {
+		if f.FilterType == string(SymbolFilterTypeLotSize) {
+			return &LotSizeFilter{MaxQuantity: f.MaxQty, MinQuantity: f.MinQty, StepSize: f.StepSize}
 		}
 	}
 	return nil
 }
-
-// PriceFilter return price filter of symbol
 func (s *OptionSymbol) PriceFilter() *PriceFilter {
-	for _, filter := range s.Filters {
-		if filter["filterType"].(string) == string(SymbolFilterTypePrice) {
-			f := &PriceFilter{}
-			if i, ok := filter["maxPrice"]; ok {
-				f.MaxPrice = i.(string)
-			}
-			if i, ok := filter["minPrice"]; ok {
-				f.MinPrice = i.(string)
-			}
-			if i, ok := filter["tickSize"]; ok {
-				f.TickSize = i.(string)
-			}
-			return f
+	for _, f := range s.Filters {
+		if f.FilterType == string(SymbolFilterTypePrice) {
+			return &PriceFilter{MaxPrice: f.MaxPrice, MinPrice: f.MinPrice, TickSize: f.TickSize}
 		}
 	}
 	return nil

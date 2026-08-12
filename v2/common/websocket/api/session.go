@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -652,9 +651,6 @@ func normalizeWireID(raw json.RawMessage) (string, error) {
 	}
 	if number.String() == "" {
 		return "", ErrUnexpectedResponse
-	}
-	if _, err := strconv.ParseFloat(number.String(), 64); err != nil {
-		return "", err
 	}
 	return number.String(), nil
 }

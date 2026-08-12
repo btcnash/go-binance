@@ -1485,12 +1485,12 @@ func (s *websocketServiceTestSuite) TestBLVTInfoServe() {
 			Event:          "nav",
 			Time:           1600245286355,
 			Symbol:         "TRXDOWN",
-			Issued:         74164.75496502663,
+			Issued:         "74164.75496502663",
 			Baskets:        []WsBLVTBasket{{Symbol: "TRXUSDT", Position: -87988261}},
-			Nav:            14.78454447,
-			Leverage:       2.1786579638117898,
+			Nav:            "14.78454447",
+			Leverage:       "2.1786579638117898",
 			TargetLeverage: 3,
-			FundingRate:    -0.0048925,
+			FundingRate:    "-0.0048925",
 		}
 		s.assertBLVTInfoEvent(e, event)
 	},

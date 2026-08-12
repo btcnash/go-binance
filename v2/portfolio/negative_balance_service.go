@@ -75,7 +75,7 @@ type NegativeBalanceExchange struct {
 
 // NegativeBalanceExchangeDetail define negative balance exchange detail
 type NegativeBalanceExchangeDetail struct {
-	Asset                string  `json:"asset"`
-	NegativeBalance      float64 `json:"negativeBalance"`
-	NegativeMaxThreshold float64 `json:"negativeMaxThreshold"`
+	Asset                string `json:"asset"`
+	NegativeBalance      string `json:"negativeBalance"`
+	NegativeMaxThreshold string `json:"negativeMaxThreshold"`
 }

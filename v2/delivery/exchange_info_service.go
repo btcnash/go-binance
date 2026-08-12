@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-
-	"github.com/btcnash/go-binance/v2/common"
 )
 
 // ExchangeInfoService exchange info service
@@ -35,11 +33,11 @@ func (s *ExchangeInfoService) Do(ctx context.Context, opts ...RequestOption) (re
 
 // ExchangeInfo exchange info
 type ExchangeInfo struct {
-	Timezone        string      `json:"timezone"`
-	ServerTime      int64       `json:"serverTime"`
-	RateLimits      []RateLimit `json:"rateLimits"`
-	ExchangeFilters []any       `json:"exchangeFilters"`
-	Symbols         []Symbol    `json:"symbols"`
+	Timezone        string           `json:"timezone"`
+	ServerTime      int64            `json:"serverTime"`
+	RateLimits      []RateLimit      `json:"rateLimits"`
+	ExchangeFilters []ExchangeFilter `json:"exchangeFilters"`
+	Symbols         []Symbol         `json:"symbols"`
 }
 
 // RateLimit struct
@@ -54,7 +52,7 @@ type RateLimit struct {
 type Symbol struct {
 	OrderType             []OrderType       `json:"OrderType"`
 	TimeInForce           []TimeInForceType `json:"timeInForce"`
-	Filters               []map[string]any  `json:"filters"`
+	Filters               []Filter          `json:"filters"`
 	Symbol                string            `json:"symbol"`
 	Pair                  string            `json:"pair"`
 	ContractType          string            `json:"contractType"`
@@ -74,7 +72,7 @@ type Symbol struct {
 	EqualQtyPrecision     int               `json:"equalQtyPrecision"`
 	TriggerProtect        string            `json:"triggerProtect"`
 	UnderlyingType        string            `json:"underlyingType"`
-	UnderlyingSubType     []any             `json:"underlyingSubType"`
+	UnderlyingSubType     []string          `json:"underlyingSubType"`
 }
 
 // LotSizeFilter define lot size filter of symbol
@@ -117,111 +115,49 @@ type MaxNumAlgoOrdersFilter struct {
 
 // LotSizeFilter return lot size filter of symbol
 func (s *Symbol) LotSizeFilter() *LotSizeFilter {
-	for _, filter := range s.Filters {
-		if filter["filterType"].(string) == string(SymbolFilterTypeLotSize) {
-			f := &LotSizeFilter{}
-			if i, ok := filter["maxQty"]; ok {
-				f.MaxQuantity = i.(string)
-			}
-			if i, ok := filter["minQty"]; ok {
-				f.MinQuantity = i.(string)
-			}
-			if i, ok := filter["stepSize"]; ok {
-				f.StepSize = i.(string)
-			}
-			return f
+	for _, f := range s.Filters {
+		if f.FilterType == string(SymbolFilterTypeLotSize) {
+			return &LotSizeFilter{MaxQuantity: f.MaxQty, MinQuantity: f.MinQty, StepSize: f.StepSize}
 		}
 	}
 	return nil
 }
-
-// PriceFilter return price filter of symbol
 func (s *Symbol) PriceFilter() *PriceFilter {
-	for _, filter := range s.Filters {
-		if filter["filterType"].(string) == string(SymbolFilterTypePrice) {
-			f := &PriceFilter{}
-			if i, ok := filter["maxPrice"]; ok {
-				f.MaxPrice = i.(string)
-			}
-			if i, ok := filter["minPrice"]; ok {
-				f.MinPrice = i.(string)
-			}
-			if i, ok := filter["tickSize"]; ok {
-				f.TickSize = i.(string)
-			}
-			return f
+	for _, f := range s.Filters {
+		if f.FilterType == string(SymbolFilterTypePrice) {
+			return &PriceFilter{MaxPrice: f.MaxPrice, MinPrice: f.MinPrice, TickSize: f.TickSize}
 		}
 	}
 	return nil
 }
-
-// PercentPriceFilter return percent price filter of symbol
 func (s *Symbol) PercentPriceFilter() *PercentPriceFilter {
-	for _, filter := range s.Filters {
-		if filter["filterType"].(string) == string(SymbolFilterTypePercentPrice) {
-			f := &PercentPriceFilter{}
-			if i, ok := filter["multiplierDecimal"]; ok {
-				f.MultiplierDecimal = i.(string)
-			}
-			if i, ok := filter["multiplierUp"]; ok {
-				f.MultiplierUp = i.(string)
-			}
-			if i, ok := filter["multiplierDown"]; ok {
-				f.MultiplierDown = i.(string)
-			}
-			return f
+	for _, f := range s.Filters {
+		if f.FilterType == string(SymbolFilterTypePercentPrice) {
+			return &PercentPriceFilter{MultiplierDecimal: f.MultiplierDecimal, MultiplierUp: f.MultiplierUp, MultiplierDown: f.MultiplierDown}
 		}
 	}
 	return nil
 }
-
-// MarketLotSizeFilter return market lot size filter of symbol
 func (s *Symbol) MarketLotSizeFilter() *MarketLotSizeFilter {
-	for _, filter := range s.Filters {
-		if filter["filterType"].(string) == string(SymbolFilterTypeMarketLotSize) {
-			f := &MarketLotSizeFilter{}
-			if i, ok := filter["maxQty"]; ok {
-				f.MaxQuantity = i.(string)
-			}
-			if i, ok := filter["minQty"]; ok {
-				f.MinQuantity = i.(string)
-			}
-			if i, ok := filter["stepSize"]; ok {
-				f.StepSize = i.(string)
-			}
-			return f
+	for _, f := range s.Filters {
+		if f.FilterType == string(SymbolFilterTypeMarketLotSize) {
+			return &MarketLotSizeFilter{MaxQuantity: f.MaxQty, MinQuantity: f.MinQty, StepSize: f.StepSize}
 		}
 	}
 	return nil
 }
-
-// MaxNumOrdersFilter return max num orders filter of symbol
 func (s *Symbol) MaxNumOrdersFilter() *MaxNumOrdersFilter {
-	for _, filter := range s.Filters {
-		if filter["filterType"].(string) == string(SymbolFilterTypeMaxNumOrders) {
-			f := &MaxNumOrdersFilter{}
-			if i, ok := filter["limit"]; ok {
-				if limit, okk := common.ToInt64(i); okk == nil {
-					f.Limit = limit
-				}
-			}
-			return f
+	for _, f := range s.Filters {
+		if f.FilterType == string(SymbolFilterTypeMaxNumOrders) {
+			return &MaxNumOrdersFilter{Limit: f.Limit}
 		}
 	}
 	return nil
 }
-
-// MaxNumAlgoOrdersFilter return max num orders filter of symbol
 func (s *Symbol) MaxNumAlgoOrdersFilter() *MaxNumAlgoOrdersFilter {
-	for _, filter := range s.Filters {
-		if filter["filterType"].(string) == string(SymbolFilterTypeMaxNumAlgoOrders) {
-			f := &MaxNumAlgoOrdersFilter{}
-			if i, ok := filter["limit"]; ok {
-				if limit, okk := common.ToInt64(i); okk == nil {
-					f.Limit = limit
-				}
-			}
-			return f
+	for _, f := range s.Filters {
+		if f.FilterType == string(SymbolFilterTypeMaxNumAlgoOrders) {
+			return &MaxNumAlgoOrdersFilter{Limit: f.Limit}
 		}
 	}
 	return nil

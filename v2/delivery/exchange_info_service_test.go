@@ -120,7 +120,7 @@ func (s *exchangeInfoServiceTestSuite) TestExchangeInfo() {
 			{RateLimitType: "REQUEST_WEIGHT", Interval: "MINUTE", IntervalNum: 1, Limit: 6000},
 			{RateLimitType: "ORDERS", Interval: "MINUTE", IntervalNum: 1, Limit: 6000},
 		},
-		ExchangeFilters: []any{},
+		ExchangeFilters: []ExchangeFilter{},
 		Symbols: []Symbol{
 			{
 				Symbol:                "BTCUSD_200925",
@@ -142,16 +142,16 @@ func (s *exchangeInfoServiceTestSuite) TestExchangeInfo() {
 				MaintMarginPercent:    "2.5000",
 				RequiredMarginPercent: "5.0000",
 				UnderlyingType:        "COIN",
-				UnderlyingSubType:     []any{},
+				UnderlyingSubType:     []string{},
 				OrderType:             []OrderType{OrderTypeLimit, OrderTypeMarket, OrderTypeStop, OrderTypeTakeProfit, OrderTypeTrailingStopMarket},
 				TimeInForce:           []TimeInForceType{TimeInForceTypeGTC, TimeInForceTypeIOC, TimeInForceTypeFOK, TimeInForceTypeGTX},
-				Filters: []map[string]any{
-					{"filterType": "PRICE_FILTER", "minPrice": "0.1", "maxPrice": "100000", "tickSize": "0.1"},
-					{"filterType": "LOT_SIZE", "minQty": "1", "maxQty": "100000", "stepSize": "1"},
-					{"filterType": "MARKET_LOT_SIZE", "maxQty": "100000", "minQty": "1", "stepSize": "1"},
-					{"filterType": "MAX_NUM_ORDERS", "limit": 200},
-					{"filterType": "MAX_NUM_ALGO_ORDERS", "limit": 20},
-					{"filterType": "PERCENT_PRICE", "multiplierUp": "1.0500", "multiplierDown": "0.9500", "multiplierDecimal": "4"},
+				Filters: []Filter{
+					{FilterType: "PRICE_FILTER", MinPrice: "0.1", MaxPrice: "100000", TickSize: "0.1"},
+					{FilterType: "LOT_SIZE", MinQty: "1", MaxQty: "100000", StepSize: "1"},
+					{FilterType: "MARKET_LOT_SIZE", MaxQty: "100000", MinQty: "1", StepSize: "1"},
+					{FilterType: "MAX_NUM_ORDERS", Limit: 200},
+					{FilterType: "MAX_NUM_ALGO_ORDERS", Limit: 20},
+					{FilterType: "PERCENT_PRICE", MultiplierUp: "1.0500", MultiplierDown: "0.9500", MultiplierDecimal: "4"},
 				},
 			},
 		},
@@ -236,8 +236,7 @@ func (s *exchangeInfoServiceTestSuite) assertExchangeInfoEqual(e, a *ExchangeInf
 		r.Equal(e.Symbols[i].RequiredMarginPercent, a.Symbols[i].RequiredMarginPercent, "RequiredMarginPercent")
 
 		for fi, currentFilter := range a.Symbols[i].Filters {
-			r.Len(currentFilter, len(e.Symbols[i].Filters[fi]))
-			switch currentFilter["filterType"] {
+			switch currentFilter.FilterType {
 			case "PRICE_FILTER":
 				r.Equal(e.Symbols[i].PriceFilter().MinPrice, a.Symbols[i].PriceFilter().MinPrice, "MinPrice")
 				r.Equal(e.Symbols[i].PriceFilter().MaxPrice, a.Symbols[i].PriceFilter().MaxPrice, "MaxPrice")

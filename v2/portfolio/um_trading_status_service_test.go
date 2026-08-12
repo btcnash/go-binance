@@ -48,8 +48,8 @@ func (s *umTradingStatusServiceTestSuite) TestGetTradingStatus() {
 	s.r().True(indicator.IsLocked)
 	s.r().Equal(int64(1545741270000), indicator.PlannedRecoverTime)
 	s.r().Equal("UFR", indicator.Indicator)
-	s.r().Equal(0.05, indicator.Value)
-	s.r().Equal(0.995, indicator.TriggerValue)
+	s.r().Equal("0.05", indicator.Value)
+	s.r().Equal("0.995", indicator.TriggerValue)
 }
 
 func (s *umTradingStatusServiceTestSuite) TestGetAccountViolation() {
@@ -79,6 +79,6 @@ func (s *umTradingStatusServiceTestSuite) TestGetAccountViolation() {
 	s.r().True(indicator.IsLocked)
 	s.r().Equal(int64(1644919865000), indicator.PlannedRecoverTime)
 	s.r().Equal("TMV", indicator.Indicator)
-	s.r().Equal(float64(10), indicator.Value)
-	s.r().Equal(float64(1), indicator.TriggerValue)
+	s.r().Equal("10", indicator.Value)
+	s.r().Equal("1", indicator.TriggerValue)
 }

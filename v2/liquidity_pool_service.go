@@ -89,7 +89,7 @@ type AddLiquidityPreviewService struct {
 	poolId        *int64
 	operationType *LiquidityOperationType
 	quoteAsset    *string
-	quoteQty      *float64
+	quoteQty      *string
 }
 
 // PoolId set poolId
@@ -105,7 +105,7 @@ func (s *AddLiquidityPreviewService) QuoteAsset(quoteAsset string) *AddLiquidity
 }
 
 // QuoteQty set quoteQty
-func (s *AddLiquidityPreviewService) QuoteQty(quoteQty float64) *AddLiquidityPreviewService {
+func (s *AddLiquidityPreviewService) QuoteQty(quoteQty string) *AddLiquidityPreviewService {
 	s.quoteQty = &quoteQty
 	return s
 }
@@ -157,7 +157,7 @@ type GetSwapQuoteService struct {
 	c          *Client
 	quoteAsset *string
 	baseAsset  *string
-	quoteQty   *float64
+	quoteQty   *string
 }
 
 // QuoteAsset set quoteAsset
@@ -167,7 +167,7 @@ func (s *GetSwapQuoteService) QuoteAsset(quoteAsset string) *GetSwapQuoteService
 }
 
 // QuoteQty set quoteQty
-func (s *GetSwapQuoteService) QuoteQty(quoteQty float64) *GetSwapQuoteService {
+func (s *GetSwapQuoteService) QuoteQty(quoteQty string) *GetSwapQuoteService {
 	s.quoteQty = &quoteQty
 	return s
 }
@@ -217,7 +217,7 @@ type SwapService struct {
 	c          *Client
 	quoteAsset *string
 	baseAsset  *string
-	quoteQty   *float64
+	quoteQty   *string
 }
 
 // QuoteAsset set quoteAsset
@@ -227,7 +227,7 @@ func (s *SwapService) QuoteAsset(quoteAsset string) *SwapService {
 }
 
 // QuoteQty set quoteQty
-func (s *SwapService) QuoteQty(quoteQty float64) *SwapService {
+func (s *SwapService) QuoteQty(quoteQty string) *SwapService {
 	s.quoteQty = &quoteQty
 	return s
 }
@@ -379,7 +379,7 @@ type AddLiquidityService struct {
 	poolId        *int64
 	operationType *LiquidityOperationType
 	quoteAsset    *string
-	quoteQty      *float64
+	quoteQty      *string
 }
 
 // PoolId set poolId
@@ -395,7 +395,7 @@ func (s *AddLiquidityService) QuoteAsset(quoteAsset string) *AddLiquidityService
 }
 
 // QuoteQty set quoteQty
-func (s *AddLiquidityService) QuoteQty(quoteQty float64) *AddLiquidityService {
+func (s *AddLiquidityService) QuoteQty(quoteQty string) *AddLiquidityService {
 	s.quoteQty = &quoteQty
 	return s
 }
@@ -441,7 +441,7 @@ type RemoveLiquidityService struct {
 	poolId        *int64
 	operationType *LiquidityOperationType
 	assets        []string
-	shareAmount   *float64
+	shareAmount   *string
 }
 
 // PoolId set poolId
@@ -451,7 +451,7 @@ func (s *RemoveLiquidityService) PoolId(poolId int64) *RemoveLiquidityService {
 }
 
 // ShareAmount set shareAmount
-func (s *RemoveLiquidityService) ShareAmount(amt float64) *RemoveLiquidityService {
+func (s *RemoveLiquidityService) ShareAmount(amt string) *RemoveLiquidityService {
 	s.shareAmount = &amt
 	return s
 }

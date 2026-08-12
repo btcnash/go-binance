@@ -1339,10 +1339,10 @@ func (s *websocketServiceTestSuite) TestUserDataServe4() {
 		"G":[
 			{
 			 "ui":"SOLUSDT",                  
-			 "d": -33.2933905,                
-			 "t": 35.5926375,                  
-			 "g": -14.3023855,                 
-			 "v": -0.1929375                     
+			 "d": "-33.2933905",                
+			 "t": "35.5926375",                  
+			 "g": "-14.3023855",                 
+			 "v": "-0.1929375"                     
 			}
 		],
 		"P":[
@@ -1381,10 +1381,10 @@ func (s *websocketServiceTestSuite) TestUserDataServe4() {
 			AUGreek: []*WsGreek{
 				{
 					UnderlyingId: "SOLUSDT",
-					Delta:        -33.2933905,
-					Theta:        35.5926375,
-					Gamma:        -14.3023855,
-					Vega:         -0.1929375,
+					Delta:        "-33.2933905",
+					Theta:        "35.5926375",
+					Gamma:        "-14.3023855",
+					Vega:         "-0.1929375",
 				},
 			},
 			AUPosition: []*WsPosition{

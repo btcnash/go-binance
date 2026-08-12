@@ -183,9 +183,9 @@ type SubaccountAssetsResponse struct {
 }
 
 type AssetBalance struct {
-	Asset  string  `json:"asset"`
-	Free   float64 `json:"free"`
-	Locked float64 `json:"locked"`
+	Asset  string `json:"asset"`
+	Free   string `json:"free"`
+	Locked string `json:"locked"`
 }
 
 type SubaccountSpotSummaryService struct {
@@ -618,7 +618,7 @@ type SubAccountFuturesTransferV1Service struct {
 	c      *Client
 	email  string
 	asset  string
-	amount float64
+	amount string
 	/*
 		1: transfer from subaccount's spot account to its USDT-margined futures account
 		2: transfer from subaccount's USDT-margined futures account to its spot account
@@ -638,7 +638,7 @@ func (s *SubAccountFuturesTransferV1Service) Asset(v string) *SubAccountFuturesT
 	return s
 }
 
-func (s *SubAccountFuturesTransferV1Service) Amount(v float64) *SubAccountFuturesTransferV1Service {
+func (s *SubAccountFuturesTransferV1Service) Amount(v string) *SubAccountFuturesTransferV1Service {
 	s.amount = v
 	return s
 }
@@ -2949,14 +2949,14 @@ type SubAccountTransactionStatisticServiceResponse struct {
 }
 
 type TradeInfoVo struct {
-	UserId      int64   `json:"userId"`
-	Btc         float64 `json:"btc"`
-	BtcFutures  float64 `json:"btcFutures"`
-	BtcMargin   float64 `json:"btcMargin"`
-	Busd        float64 `json:"busd"`
-	BusdFutures float64 `json:"busdFutures"`
-	BusdMargin  float64 `json:"busdMargin"`
-	Date        int64   `json:"date"`
+	UserId      int64  `json:"userId"`
+	Btc         string `json:"btc"`
+	BtcFutures  string `json:"btcFutures"`
+	BtcMargin   string `json:"btcMargin"`
+	Busd        string `json:"busd"`
+	BusdFutures string `json:"busdFutures"`
+	BusdMargin  string `json:"busdMargin"`
+	Date        int64  `json:"date"`
 }
 
 func (s *SubAccountTransactionStatisticsService) Email(email string) *SubAccountTransactionStatisticsService {

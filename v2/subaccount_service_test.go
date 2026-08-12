@@ -314,7 +314,7 @@ func (s *subAccountServiceTestSuite) TestSubAccountFuturesTransferService() {
 
 	email := "abc@test.com"
 	asset := "USDT"
-	amount := 1.0
+	amount := "123456789.123456789"
 	tType := 1
 	s.assertReq(func(r *request) {
 		e := newSignedRequest().
@@ -2660,21 +2660,21 @@ func (s *subAccountTransactionStatisticsServiceTestSuite) TestSubAccountTransact
 		Recent30BusdMarginTotal:  "0",
 		TradeInfoVos: []*TradeInfoVo{{
 			UserId:      1000138138384,
-			Btc:         0,
-			BtcFutures:  0,
-			BtcMargin:   0,
-			Busd:        0,
-			BusdFutures: 0,
-			BusdMargin:  0,
+			Btc:         "0",
+			BtcFutures:  "0",
+			BtcMargin:   "0",
+			Busd:        "0",
+			BusdFutures: "0",
+			BusdMargin:  "0",
 			Date:        1676851200000},
 			{
 				UserId:      1000138138384,
-				Btc:         0,
-				BtcFutures:  0,
-				BtcMargin:   0,
-				Busd:        0,
-				BusdFutures: 0,
-				BusdMargin:  0,
+				Btc:         "0",
+				BtcFutures:  "0",
+				BtcMargin:   "0",
+				Busd:        "0",
+				BusdFutures: "0",
+				BusdMargin:  "0",
 				Date:        1676937600000}}}
 	s.assertSubAccountTransactionStatisticServiceResponseEqual(e, res)
 }

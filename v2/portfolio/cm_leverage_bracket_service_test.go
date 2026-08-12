@@ -49,10 +49,10 @@ func (s *cmLeverageBracketServiceTestSuite) TestGetLeverageBracket() {
 			{
 				Bracket:          1,
 				InitialLeverage:  125,
-				QtyCap:           50,
-				QtyFloor:         0,
-				MaintMarginRatio: 0.004,
-				Cum:              0.0,
+				QtyCap:           "50",
+				QtyFloor:         "0",
+				MaintMarginRatio: "0.004",
+				Cum:              "0.0",
 			},
 		},
 	})

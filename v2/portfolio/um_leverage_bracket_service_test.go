@@ -51,10 +51,10 @@ func (s *umLeverageBracketServiceTestSuite) TestGetLeverageBracket() {
 			{
 				Bracket:          1,
 				InitialLeverage:  75,
-				NotionalCap:      10000,
-				NotionalFloor:    0,
-				MaintMarginRatio: 0.0065,
-				Cum:              0,
+				NotionalCap:      "10000",
+				NotionalFloor:    "0",
+				MaintMarginRatio: "0.0065",
+				Cum:              "0",
 			},
 		},
 	})

@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
-	"strconv"
 	"time"
 
 	"github.com/btcnash/go-binance/v2/common"
 	"github.com/btcnash/go-binance/v2/common/websocket"
 	managedfutures "github.com/btcnash/go-binance/v2/futures/wsapi"
+	"github.com/shopspring/decimal"
 )
 
 var (
@@ -313,8 +312,8 @@ func (r *AlgoOrderPlaceWsRequest) validateAt(nowMilli int64) error {
 		if r.callbackRate == nil {
 			return ErrAlgoOrderCallbackRateRequired
 		}
-		rate, err := strconv.ParseFloat(*r.callbackRate, 64)
-		if err != nil || math.IsNaN(rate) || math.IsInf(rate, 0) || rate < 0.1 || rate > 10 {
+		rate, err := decimal.NewFromString(*r.callbackRate)
+		if err != nil || rate.LessThan(decimal.NewFromInt(1).Div(decimal.NewFromInt(10))) || rate.GreaterThan(decimal.NewFromInt(10)) {
 			return fmt.Errorf("%w: %q", ErrAlgoOrderCallbackRateOutOfRange, *r.callbackRate)
 		}
 	}

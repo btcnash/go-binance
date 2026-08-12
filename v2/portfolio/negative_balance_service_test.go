@@ -35,7 +35,7 @@ func (s *negativeBalanceServiceTestSuite) TestGetNegativeBalanceExchangeRecord()
 				"details": [
 					{
 						"asset": "BNB",
-						"negativeBalance": 1.10264488,
+						"negativeBalance": 1.102644880000000001,
 						"negativeMaxThreshold": 0
 					}
 				]
@@ -68,6 +68,6 @@ func (s *negativeBalanceServiceTestSuite) TestGetNegativeBalanceExchangeRecord()
 	s.r().Len(res.Rows, 2)
 	s.r().Equal(int64(1736263046841), res.Rows[0].StartTime)
 	s.r().Equal("ETH", res.Rows[0].Details[0].Asset)
-	s.r().Equal(18.0, res.Rows[0].Details[0].NegativeBalance)
-	s.r().Equal(5.0, res.Rows[0].Details[0].NegativeMaxThreshold)
+	s.r().Equal("18", res.Rows[0].Details[0].NegativeBalance)
+	s.r().Equal("5", res.Rows[0].Details[0].NegativeMaxThreshold)
 }

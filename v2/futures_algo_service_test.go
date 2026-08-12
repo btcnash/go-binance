@@ -67,7 +67,8 @@ func (s *futuresAlgoOrderTestSuite) TestCreateVpOrder() {
 	symbol := "BTCUSDT"
 	side := SideTypeBuy
 	positionSide := futures.PositionSideTypeLong
-	quantity := 1.1
+	quantity := "123456789.123456789"
+	limitPrice := "0.000000000000000001"
 	urgency := FuturesAlgoUrgencyTypeMedium
 	clientAlgoId := "12345678"
 	s.assertReq(func(r *request) {
@@ -78,11 +79,12 @@ func (s *futuresAlgoOrderTestSuite) TestCreateVpOrder() {
 			"quantity":     quantity,
 			"urgency":      string(urgency),
 			"clientAlgoId": clientAlgoId,
+			"limitPrice":   limitPrice,
 		})
 		s.assertRequestEqual(e, r)
 	})
 	res, err := s.client.NewCreateFuturesAlgoVpOrderService().Symbol(symbol).Side(side).PositionSide(positionSide).Quantity(quantity).
-		Urgency(urgency).ClientAlgoId(clientAlgoId).Do(newContext())
+		Urgency(urgency).ClientAlgoId(clientAlgoId).LimitPrice(limitPrice).Do(newContext())
 	s.r().NoError(err)
 	e := &CreateFuturesAlgoOrderResponse{
 		ClientAlgoId: "12345678",
@@ -105,10 +107,10 @@ func (s *futuresAlgoOrderTestSuite) TestCreateTwapOrder() {
 	symbol := "BTCUSDT"
 	side := SideTypeBuy
 	positionSide := futures.PositionSideTypeLong
-	quantity := 1.1
+	quantity := "123456789.123456789"
 	duration := int64(60)
 	clientAlgoId := "12345678"
-	limitPrice := 60000.0
+	limitPrice := "0.000000000000000001"
 	s.assertReq(func(r *request) {
 		e := newSignedRequest().setFormParams(params{
 			"symbol":       symbol,

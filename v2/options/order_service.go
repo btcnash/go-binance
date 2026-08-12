@@ -437,8 +437,14 @@ func (s *CancelBatchOrdersService) ClientOrderIds(clientOrderIds []string) *Canc
 	return s
 }
 
-// return: [Order, APIError]
-func (s *CancelBatchOrdersService) Do(ctx context.Context, opts ...RequestOption) (res []any, err error) {
+// BatchOrderResult represents one batch item as either an order or an API error.
+type BatchOrderResult struct {
+	Order *Order
+	Error *common.APIError
+}
+
+// Do sends the batch cancel request.
+func (s *CancelBatchOrdersService) Do(ctx context.Context, opts ...RequestOption) (res []BatchOrderResult, err error) {
 	r := &request{
 		method:   http.MethodDelete,
 		endpoint: "/eapi/v1/batchOrders",
@@ -467,26 +473,26 @@ func (s *CancelBatchOrdersService) Do(ctx context.Context, opts ...RequestOption
 	rawMessages := make([]*json.RawMessage, 0)
 	err = json.Unmarshal(data, &rawMessages)
 	if err != nil {
-		return []any{}, err
+		return []BatchOrderResult{}, err
 	}
 
-	res = make([]any, 0)
+	res = make([]BatchOrderResult, 0)
 	for _, j := range rawMessages {
 		e := new(common.APIError)
 		if err := json.Unmarshal(*j, e); err != nil {
-			return []any{}, err
+			return []BatchOrderResult{}, err
 		}
 		if e.IsValid() {
-			res = append(res, *e)
+			res = append(res, BatchOrderResult{Error: e})
 			continue
 		}
 		o := new(Order)
 		if err := json.Unmarshal(*j, o); err != nil {
-			return []any{}, err
+			return []BatchOrderResult{}, err
 		}
 		o.RateLimitOrder10s = rlos
 		o.RateLimitOrder1m = rlom
-		res = append(res, *o)
+		res = append(res, BatchOrderResult{Order: o})
 	}
 	return res, nil
 }
@@ -501,8 +507,8 @@ func (s *CreateBatchOrdersService) OrderList(orders []*CreateOrderService) *Crea
 	return s
 }
 
-// return: [Order, APIError]
-func (s *CreateBatchOrdersService) Do(ctx context.Context, opts ...RequestOption) (res []any, err error) {
+// Do sends the batch create request.
+func (s *CreateBatchOrdersService) Do(ctx context.Context, opts ...RequestOption) (res []BatchOrderResult, err error) {
 	r := &request{
 		method:   http.MethodPost,
 		endpoint: "/eapi/v1/batchOrders",
@@ -513,7 +519,7 @@ func (s *CreateBatchOrdersService) Do(ctx context.Context, opts ...RequestOption
 	for _, order := range s.orders {
 		if order.newOrderRespType != "" && order.newOrderRespType != NewOrderRespTypeACK &&
 			order.newOrderRespType != NewOrderRespTypeRESULT {
-			return []any{}, fmt.Errorf("no expected newOrderRespType value=%v", order.newOrderRespType)
+			return []BatchOrderResult{}, fmt.Errorf("no expected newOrderRespType value=%v", order.newOrderRespType)
 		}
 		m := params{
 			"symbol":   order.symbol,
@@ -547,7 +553,7 @@ func (s *CreateBatchOrdersService) Do(ctx context.Context, opts ...RequestOption
 
 	b, err := json.Marshal(orders)
 	if err != nil {
-		return []any{}, err
+		return []BatchOrderResult{}, err
 	}
 	m := params{
 		"orders": string(b),
@@ -557,30 +563,30 @@ func (s *CreateBatchOrdersService) Do(ctx context.Context, opts ...RequestOption
 
 	data, _, err := s.c.callAPI(ctx, r, opts...)
 	if err != nil {
-		return []any{}, err
+		return []BatchOrderResult{}, err
 	}
 
 	rawMessages := make([]*json.RawMessage, 0)
 	err = json.Unmarshal(data, &rawMessages)
 	if err != nil {
-		return []any{}, err
+		return []BatchOrderResult{}, err
 	}
 
-	res = make([]any, 0)
+	res = make([]BatchOrderResult, 0)
 	for _, j := range rawMessages {
 		e := new(common.APIError)
 		if err := json.Unmarshal(*j, e); err != nil {
-			return []any{}, err
+			return []BatchOrderResult{}, err
 		}
 		if e.IsValid() {
-			res = append(res, *e)
+			res = append(res, BatchOrderResult{Error: e})
 			continue
 		}
 		o := new(Order)
 		if err := json.Unmarshal(*j, o); err != nil {
-			return []any{}, err
+			return []BatchOrderResult{}, err
 		}
-		res = append(res, *o)
+		res = append(res, BatchOrderResult{Order: o})
 	}
 	return res, nil
 }

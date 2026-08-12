@@ -925,12 +925,12 @@ type WsBLVTInfoEvent struct {
 	Event          string         `json:"e"`
 	Time           int64          `json:"E"`
 	Symbol         string         `json:"s"`
-	Issued         float64        `json:"m"`
+	Issued         string         `json:"m"`
 	Baskets        []WsBLVTBasket `json:"b"`
-	Nav            float64        `json:"n"`
-	Leverage       float64        `json:"l"`
+	Nav            string         `json:"n"`
+	Leverage       string         `json:"l"`
 	TargetLeverage int64          `json:"t"`
-	FundingRate    float64        `json:"f"`
+	FundingRate    string         `json:"f"`
 }
 
 // WsBLVTBasket define websocket BLVT basket
@@ -1129,13 +1129,13 @@ type WsContractInfoData struct {
 
 // WsContractInfoBracket define one contract leverage bracket update.
 type WsContractInfoBracket struct {
-	Bracket          int     `json:"bs"`
-	NotionalFloor    float64 `json:"bnf"`
-	NotionalCap      float64 `json:"bnc"`
-	MaintMarginRatio float64 `json:"mmr"`
-	Cum              float64 `json:"cf"`
-	MinLeverage      int     `json:"mi"`
-	MaxLeverage      int     `json:"ma"`
+	Bracket          int    `json:"bs"`
+	NotionalFloor    string `json:"bnf"`
+	NotionalCap      string `json:"bnc"`
+	MaintMarginRatio string `json:"mmr"`
+	Cum              string `json:"cf"`
+	MinLeverage      int    `json:"mi"`
+	MaxLeverage      int    `json:"ma"`
 }
 
 // WsContractInfoHandler handle WsContractInfoEvent

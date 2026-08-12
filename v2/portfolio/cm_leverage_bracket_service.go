@@ -49,10 +49,10 @@ type CMLeverageBracket struct {
 
 // CMBracket define CM bracket info
 type CMBracket struct {
-	Bracket          int     `json:"bracket"`          // bracket level
-	InitialLeverage  int     `json:"initialLeverage"`  // the maximum leverage
-	QtyCap           float64 `json:"qtyCap"`           // upper edge of base asset quantity
-	QtyFloor         float64 `json:"qtyFloor"`         // lower edge of base asset quantity
-	MaintMarginRatio float64 `json:"maintMarginRatio"` // maintenance margin rate
-	Cum              float64 `json:"cum"`              // Auxiliary number for quick calculation
+	Bracket          int    `json:"bracket"`          // bracket level
+	InitialLeverage  int    `json:"initialLeverage"`  // the maximum leverage
+	QtyCap           string `json:"qtyCap"`           // upper edge of base asset quantity
+	QtyFloor         string `json:"qtyFloor"`         // lower edge of base asset quantity
+	MaintMarginRatio string `json:"maintMarginRatio"` // maintenance margin rate
+	Cum              string `json:"cum"`              // Auxiliary number for quick calculation
 }

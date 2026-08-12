@@ -168,7 +168,7 @@ func (s *websocketServiceTestSuite) TestWsUserDataServeMarginCall() {
 					AccumulatedRealized: "0",
 					Amount:              "1.327",
 					UnrealizedPnL:       "-1.166074",
-					BreakEvenPrice:      152.909412,
+					BreakEvenPrice:      "152.909412",
 				},
 			}},
 	}

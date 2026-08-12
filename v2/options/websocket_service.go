@@ -737,11 +737,11 @@ type WsBalance struct {
 }
 
 type WsGreek struct {
-	UnderlyingId string  `json:"ui"`
-	Delta        float64 `json:"d"`
-	Theta        float64 `json:"t"`
-	Gamma        float64 `json:"g"`
-	Vega         float64 `json:"v"`
+	UnderlyingId string `json:"ui"`
+	Delta        string `json:"d"`
+	Theta        string `json:"t"`
+	Gamma        string `json:"g"`
+	Vega         string `json:"v"`
 }
 
 // WsPosition define position

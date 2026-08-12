@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/btcnash/go-binance/v2/internal/exactjson"
 	"github.com/btcnash/go-binance/v2/internal/networkenv"
 )
 
@@ -668,7 +669,7 @@ type WsUserDataEvent struct {
 func (e *WsUserDataEvent) UnmarshalJSON(data []byte) error {
 	var tmp struct {
 		Event               UserDataEventType  `json:"e"`
-		Time                any                `json:"E"`
+		Time                json.RawMessage    `json:"E"`
 		Alias               string             `json:"i"`
 		CrossWalletBalance  string             `json:"cw"`
 		MarginCallPositions []WsPosition       `json:"p"`
@@ -681,17 +682,18 @@ func (e *WsUserDataEvent) UnmarshalJSON(data []byte) error {
 	}
 
 	e.Event = tmp.Event
-	switch v := tmp.Time.(type) {
-	case float64:
-		e.Time = int64(v)
-	case string:
-		parsedTime, err := strconv.ParseInt(v, 10, 64)
+	if len(tmp.Time) == 0 || string(tmp.Time) == "null" {
+		e.Time = 0
+	} else {
+		text, err := exactjson.NumberOrString(tmp.Time)
 		if err != nil {
-			return err
+			return fmt.Errorf("decode event time: %w", err)
+		}
+		parsedTime, err := strconv.ParseInt(text, 10, 64)
+		if err != nil {
+			return fmt.Errorf("decode event time integer: %w", err)
 		}
 		e.Time = parsedTime
-	default:
-		return fmt.Errorf("unexpected type for E: %T", tmp.Time)
 	}
 	e.Alias = tmp.Alias
 	e.CrossWalletBalance = tmp.CrossWalletBalance

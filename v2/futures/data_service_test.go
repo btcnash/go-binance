@@ -37,10 +37,10 @@ func (s *deliveryPriceServiceTestSuite) TestDeliveryPrice() {
 	e := []*DeliveryPrice{
 		{
 			DeliveryTime:  1711670400000,
-			DeliveryPrice: 70151.5},
+			DeliveryPrice: "70151.5"},
 		{
 			DeliveryTime:  1703808000000,
-			DeliveryPrice: 42388.0}}
+			DeliveryPrice: "42388.0"}}
 
 	s.assertDeliveryPricesEqual(e, res)
 }

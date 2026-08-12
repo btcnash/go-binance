@@ -92,7 +92,7 @@ type SavingsFlexibleProduct struct {
 type PurchaseSavingsFlexibleProductService struct {
 	c         *Client
 	productId string
-	amount    float64
+	amount    string
 }
 
 // ProductId represent the id of the flexible product to purchase
@@ -102,7 +102,7 @@ func (s *PurchaseSavingsFlexibleProductService) ProductId(productId string) *Pur
 }
 
 // Amount is the quantity of the product to purchase
-func (s *PurchaseSavingsFlexibleProductService) Amount(amount float64) *PurchaseSavingsFlexibleProductService {
+func (s *PurchaseSavingsFlexibleProductService) Amount(amount string) *PurchaseSavingsFlexibleProductService {
 	s.amount = amount
 	return s
 }
@@ -140,7 +140,7 @@ type PurchaseSavingsFlexibleProductResponse struct {
 type RedeemSavingsFlexibleProductService struct {
 	c          *Client
 	productId  string
-	amount     float64
+	amount     string
 	redeemType string
 }
 
@@ -151,7 +151,7 @@ func (s *RedeemSavingsFlexibleProductService) ProductId(productId string) *Redee
 }
 
 // Amount is the quantity of the product to redeem
-func (s *RedeemSavingsFlexibleProductService) Amount(amount float64) *RedeemSavingsFlexibleProductService {
+func (s *RedeemSavingsFlexibleProductService) Amount(amount string) *RedeemSavingsFlexibleProductService {
 	s.amount = amount
 	return s
 }

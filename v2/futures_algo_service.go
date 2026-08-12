@@ -15,11 +15,11 @@ type CreateFuturesAlgoVpOrderService struct {
 	symbol       string
 	side         SideType
 	positionSide *futures.PositionSideType
-	quantity     float64
+	quantity     string
 	urgency      FuturesAlgoUrgencyType
 	clientAlgoId *string
 	reduceOnly   *bool
-	limitPrice   *float64
+	limitPrice   *string
 }
 
 // Symbol set symbol
@@ -41,7 +41,7 @@ func (s *CreateFuturesAlgoVpOrderService) PositionSide(positionSide futures.Posi
 }
 
 // Quantity set quantity
-func (s *CreateFuturesAlgoVpOrderService) Quantity(quantity float64) *CreateFuturesAlgoVpOrderService {
+func (s *CreateFuturesAlgoVpOrderService) Quantity(quantity string) *CreateFuturesAlgoVpOrderService {
 	s.quantity = quantity
 	return s
 }
@@ -65,7 +65,7 @@ func (s *CreateFuturesAlgoVpOrderService) ReduceOnly(reduceOnly bool) *CreateFut
 }
 
 // LimitPrice set limitPrice
-func (s *CreateFuturesAlgoVpOrderService) LimitPrice(limitPrice float64) *CreateFuturesAlgoVpOrderService {
+func (s *CreateFuturesAlgoVpOrderService) LimitPrice(limitPrice string) *CreateFuturesAlgoVpOrderService {
 	s.limitPrice = &limitPrice
 	return s
 }
@@ -131,11 +131,11 @@ type CreateFuturesAlgoTwapOrderService struct {
 	symbol       string
 	side         SideType
 	positionSide *futures.PositionSideType
-	quantity     float64
+	quantity     string
 	duration     int64
 	clientAlgoId *string
 	reduceOnly   *bool
-	limitPrice   *float64
+	limitPrice   *string
 }
 
 // Symbol set symbol
@@ -157,7 +157,7 @@ func (s *CreateFuturesAlgoTwapOrderService) PositionSide(positionSide futures.Po
 }
 
 // Quantity set quantity
-func (s *CreateFuturesAlgoTwapOrderService) Quantity(quantity float64) *CreateFuturesAlgoTwapOrderService {
+func (s *CreateFuturesAlgoTwapOrderService) Quantity(quantity string) *CreateFuturesAlgoTwapOrderService {
 	s.quantity = quantity
 	return s
 }
@@ -181,7 +181,7 @@ func (s *CreateFuturesAlgoTwapOrderService) ReduceOnly(reduceOnly bool) *CreateF
 }
 
 // LimitPrice set limitPrice
-func (s *CreateFuturesAlgoTwapOrderService) LimitPrice(limitPrice float64) *CreateFuturesAlgoTwapOrderService {
+func (s *CreateFuturesAlgoTwapOrderService) LimitPrice(limitPrice string) *CreateFuturesAlgoTwapOrderService {
 	s.limitPrice = &limitPrice
 	return s
 }

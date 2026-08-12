@@ -152,7 +152,7 @@ type WsPosition struct {
 	EntryPrice          string           `json:"ep"`
 	UnrealizedPnL       string           `json:"up"`
 	AccumulatedRealized string           `json:"cr"`
-	BreakEvenPrice      float64          `json:"bep"`
+	BreakEvenPrice      string           `json:"bep"`
 }
 
 // WsOrderTradeUpdate define order trade update

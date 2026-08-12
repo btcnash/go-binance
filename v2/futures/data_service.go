@@ -12,8 +12,8 @@ type DeliveryPriceService struct {
 }
 
 type DeliveryPrice struct {
-	DeliveryTime  uint64  `json:"deliveryTime"`  // deliveryTime
-	DeliveryPrice float64 `json:"deliveryPrice"` // deliveryPrice
+	DeliveryTime  uint64 `json:"deliveryTime"`  // deliveryTime
+	DeliveryPrice string `json:"deliveryPrice"` // deliveryPrice
 }
 
 func (s *DeliveryPriceService) Pair(pair string) *DeliveryPriceService {

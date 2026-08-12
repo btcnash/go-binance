@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"sync"
 	"testing"
 
@@ -17,25 +16,18 @@ import (
 func TestRESTListenKeyProviderLifecycle(t *testing.T) {
 	var mu sync.Mutex
 	var methods []string
-	var values []string
+	var bodies []string
+	var apiKeys []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		form, err := url.ParseQuery(string(body))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		value := form.Get("listenKey")
-		if value == "" {
-			value = r.URL.Query().Get("listenKey")
-		}
 		mu.Lock()
 		methods = append(methods, r.Method)
-		values = append(values, value)
+		bodies = append(bodies, string(body))
+		apiKeys = append(apiKeys, r.Header.Get("X-MBX-APIKEY"))
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == http.MethodPost {
@@ -76,8 +68,13 @@ func TestRESTListenKeyProviderLifecycle(t *testing.T) {
 			t.Fatalf("methods[%d] = %q, want %q", i, methods[i], want)
 		}
 	}
-	if values[0] != "" || values[1] != key || values[2] != key {
-		t.Fatalf("listenKey form values = %v", values)
+	for i := range methods {
+		if bodies[i] != "" {
+			t.Fatalf("request body[%d] = %q, want empty", i, bodies[i])
+		}
+		if apiKeys[i] != "api-key" {
+			t.Fatalf("X-MBX-APIKEY[%d] = %q, want api-key", i, apiKeys[i])
+		}
 	}
 }
 

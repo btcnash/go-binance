@@ -852,6 +852,8 @@ func (s *StreamSession) coalesceEvent(event StreamEvent) {
 
 func (s *StreamSession) coalescingLoop(ctx context.Context) {
 	defer s.workers.Done()
+	retry := time.NewTicker(time.Millisecond)
+	defer retry.Stop()
 	for {
 		streamName, pending, ok := s.peekCoalesced()
 		if !ok {
@@ -862,15 +864,65 @@ func (s *StreamSession) coalescingLoop(ctx context.Context) {
 				continue
 			}
 		}
+
+		delivered, stale := s.tryDeliverCoalesced(streamName, pending.version)
+		if delivered {
+			s.stats.eventsDelivered.Add(1)
+			continue
+		}
+		if stale {
+			continue
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-s.coalesceWake:
-			continue
-		case s.events <- pending.event:
-			s.stats.eventsDelivered.Add(1)
-			s.completeCoalescedDelivery(streamName, pending.version)
+		case <-retry.C:
 		}
+	}
+}
+
+// tryDeliverCoalesced commits a pending value only if it is still the latest
+// version for the stream at the instant output capacity is available. This
+// prevents a value that was replaced while the output was blocked from being
+// delivered before its replacement.
+func (s *StreamSession) tryDeliverCoalesced(streamName string, version uint64) (delivered, stale bool) {
+	s.coalesceMu.Lock()
+	current, ok := s.coalesced[streamName]
+	if !ok {
+		if len(s.coalesceOrder) > 0 && s.coalesceOrder[0] == streamName {
+			s.coalesceOrder = s.coalesceOrder[1:]
+		}
+		s.coalesceMu.Unlock()
+		return false, true
+	}
+	if current.version != version {
+		if len(s.coalesceOrder) > 1 && s.coalesceOrder[0] == streamName {
+			s.coalesceOrder = append(s.coalesceOrder[1:], streamName)
+		}
+		s.coalesceMu.Unlock()
+		return false, true
+	}
+
+	s.outputMu.Lock()
+	if s.outputClosed {
+		s.outputMu.Unlock()
+		s.coalesceMu.Unlock()
+		return false, false
+	}
+	select {
+	case s.events <- current.event:
+		delete(s.coalesced, streamName)
+		if len(s.coalesceOrder) > 0 && s.coalesceOrder[0] == streamName {
+			s.coalesceOrder = s.coalesceOrder[1:]
+		}
+		s.outputMu.Unlock()
+		s.coalesceMu.Unlock()
+		return true, false
+	default:
+		s.outputMu.Unlock()
+		s.coalesceMu.Unlock()
+		return false, false
 	}
 }
 

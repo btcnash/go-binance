@@ -225,7 +225,7 @@ func TestPrivateSessionListenKeyExpiredReacquiresAndReconnects(t *testing.T) {
 
 	first := <-uriC
 	second := <-uriC
-	if !strings.Contains(first, "listenKey=key-old") || !strings.Contains(second, "listenKey=key-new") {
+	if first != "/private/ws/key-old" || second != "/private/ws/key-new" {
 		t.Fatalf("URIs = %q, %q", first, second)
 	}
 	provider.mu.Lock()
@@ -427,7 +427,7 @@ func TestKeepAliveInvalidKeyReacquiresAndReconnects(t *testing.T) {
 			t.Fatalf("timeout waiting for key rotation; first=%q", first)
 		}
 	}
-	if !strings.Contains(first, "listenKey=key-old") || !strings.Contains(second, "listenKey=key-new") {
+	if first != "/private/ws/key-old" || second != "/private/ws/key-new" {
 		t.Fatalf("URIs = %q, %q", first, second)
 	}
 	select {
@@ -677,7 +677,7 @@ func TestHandshakeAuthenticationFailureReacquiresBeforeRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	first, second := <-uriC, <-uriC
-	if !strings.Contains(first, "listenKey=key-old") || !strings.Contains(second, "listenKey=key-new") {
+	if first != "/private/ws/key-old" || second != "/private/ws/key-new" {
 		t.Fatalf("URIs = %q, %q", first, second)
 	}
 }
@@ -730,7 +730,7 @@ func TestPrivateRejectionFrameReacquiresListenKey(t *testing.T) {
 		t.Fatal("timeout waiting for event after rejection recovery")
 	}
 	first, second := <-uriC, <-uriC
-	if !strings.Contains(first, "listenKey=key-old") || !strings.Contains(second, "listenKey=key-new") {
+	if first != "/private/ws/key-old" || second != "/private/ws/key-new" {
 		t.Fatalf("URIs = %q, %q", first, second)
 	}
 	select {

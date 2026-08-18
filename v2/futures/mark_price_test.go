@@ -194,6 +194,28 @@ func (s *getLeverageBracketServiceTestSuite) TestGetLeverageBracket() {
 	}
 }
 
+func (s *getLeverageBracketServiceTestSuite) TestGetLeverageBracketWithoutSymbol() {
+	data := []byte(`[
+		{"symbol":"BTCUSDT","brackets":[]},
+		{"symbol":"ETHUSDT","brackets":[]}
+	]`)
+	s.mockDo(data, nil)
+	defer s.assertDo()
+
+	s.assertReq(func(r *request) {
+		e := newSignedRequest()
+		s.assertRequestEqual(e, r)
+		s.r().NotContains(r.query, "symbol")
+	})
+
+	res, err := s.client.NewGetLeverageBracketService().Do(newContext())
+
+	s.r().NoError(err)
+	s.r().Len(res, 2)
+	s.r().Equal("BTCUSDT", res[0].Symbol)
+	s.r().Equal("ETHUSDT", res[1].Symbol)
+}
+
 func (s *getLeverageBracketServiceTestSuite) assertLeverageBracketEqual(e, a *LeverageBracket) {
 	r := s.r()
 	r.Equal(e.Symbol, a.Symbol, "Symbol")

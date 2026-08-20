@@ -197,7 +197,7 @@ func (s *tradeServiceTestSuite) TestAccountTradeList() {
 			"symbol":    symbol,
 			"startTime": startTime,
 			"endTime":   endTime,
-			"fromID":    fromID,
+			"fromId":    fromID,
 			"limit":     limit,
 		})
 		s.assertRequestEqual(e, r)

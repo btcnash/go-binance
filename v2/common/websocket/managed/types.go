@@ -26,6 +26,10 @@ const (
 // Implementations must allow one concurrent reader and one concurrent writer,
 // and Close must unblock an in-progress ReadMessage. Connection itself
 // guarantees that every write is serialized.
+//
+// On a successful ReadMessage, ownership of the returned payload backing bytes
+// transfers to the caller. The Socket implementation must not mutate or reuse
+// that backing array after ReadMessage returns.
 type Socket interface {
 	ReadMessage() (messageType int, payload []byte, err error)
 	WriteMessage(messageType int, payload []byte) error

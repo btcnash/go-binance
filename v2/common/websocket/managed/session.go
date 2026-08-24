@@ -280,7 +280,7 @@ func (s *physicalSession) readerLoop() {
 		frame := Frame{
 			Generation: s.generation,
 			Type:       messageType,
-			Payload:    append([]byte(nil), payload...),
+			Payload:    payload,
 			ReceivedAt: time.Now(),
 		}
 		select {

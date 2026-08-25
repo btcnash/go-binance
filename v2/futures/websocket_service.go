@@ -68,10 +68,12 @@ type WsAggTradeEvent struct {
 	AggregateTradeID int64  `json:"a"`
 	Price            string `json:"p"`
 	Quantity         string `json:"q"`
+	NormalQuantity   string `json:"nq"`
 	FirstTradeID     int64  `json:"f"`
 	LastTradeID      int64  `json:"l"`
 	TradeTime        int64  `json:"T"`
 	Maker            bool   `json:"m"`
+	SymbolType       int    `json:"st"`
 }
 
 // WsAggTradeHandler handle websocket that push trade information that is aggregated for a single taker order.

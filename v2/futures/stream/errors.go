@@ -21,6 +21,7 @@ var (
 	ErrOperationSuperseded    = errors.New("futures stream: operation superseded by newer desired state")
 	ErrUnexpectedResponse     = errors.New("futures stream: unexpected response")
 	ErrInvalidDeliveryPolicy  = errors.New("futures stream: invalid delivery policy")
+	ErrApplicationDecode      = errors.New("futures stream: application event decode failed")
 )
 
 // StreamErrorKind is a machine-readable session failure category.

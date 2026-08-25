@@ -60,54 +60,6 @@ func getWsPrivateEndpoint() string {
 	return networkenv.USDM(networkenv.Current()).PrivateRaw
 }
 
-// WsAggTradeEvent define websocket aggTrde event.
-type WsAggTradeEvent struct {
-	Event                 string `json:"e"`
-	Time                  int64  `json:"E"`
-	Symbol                string `json:"s"`
-	AggregateTradeID      int64  `json:"a"`
-	Price                 string `json:"p"`
-	Quantity              string `json:"q"`
-	NormalQuantity        string `json:"nq"`
-	NormalQuantityPresent bool   `json:"-"`
-	FirstTradeID          int64  `json:"f"`
-	LastTradeID           int64  `json:"l"`
-	TradeTime             int64  `json:"T"`
-	Maker                 bool   `json:"m"`
-	SymbolType            int    `json:"st"`
-	SymbolTypePresent     bool   `json:"-"`
-}
-
-// UnmarshalJSON decodes an aggTrade event while preserving whether nq and st were present on the wire.
-func (e *WsAggTradeEvent) UnmarshalJSON(payload []byte) error {
-	type eventAlias WsAggTradeEvent
-	wire := struct {
-		*eventAlias
-		NormalQuantity *string `json:"nq"`
-		SymbolType     *int    `json:"st"`
-	}{
-		eventAlias: (*eventAlias)(e),
-	}
-
-	if err := json.Unmarshal(payload, &wire); err != nil {
-		return err
-	}
-
-	e.NormalQuantity = ""
-	e.NormalQuantityPresent = wire.NormalQuantity != nil
-	if wire.NormalQuantity != nil {
-		e.NormalQuantity = *wire.NormalQuantity
-	}
-
-	e.SymbolType = 0
-	e.SymbolTypePresent = wire.SymbolType != nil
-	if wire.SymbolType != nil {
-		e.SymbolType = *wire.SymbolType
-	}
-
-	return nil
-}
-
 // WsAggTradeHandler handle websocket that push trade information that is aggregated for a single taker order.
 type WsAggTradeHandler func(event *WsAggTradeEvent)
 
@@ -634,19 +586,6 @@ func WsAllMarketTickerServe(handler WsAllMarketTickerHandler, errHandler ErrHand
 		handler(event)
 	}
 	return wsServe(cfg, wsHandler, errHandler)
-}
-
-// WsBookTickerEvent define websocket best book ticker event.
-type WsBookTickerEvent struct {
-	Event           string `json:"e"`
-	UpdateID        int64  `json:"u"`
-	Time            int64  `json:"E"`
-	TransactionTime int64  `json:"T"`
-	Symbol          string `json:"s"`
-	BestBidPrice    string `json:"b"`
-	BestBidQty      string `json:"B"`
-	BestAskPrice    string `json:"a"`
-	BestAskQty      string `json:"A"`
 }
 
 type WsCombinedBookTickerEvent struct {

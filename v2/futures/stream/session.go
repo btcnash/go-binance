@@ -61,8 +61,10 @@ type subscriptionWaiter struct {
 }
 
 type coalescedEvent struct {
-	event   StreamEvent
-	version uint64
+	event      StreamEvent
+	typedEvent TypedStreamEvent
+	typed      bool
+	version    uint64
 }
 
 type streamStats struct {
@@ -118,6 +120,7 @@ func NewStreamSession(opts StreamSessionOptions) (*StreamSession, error) {
 		changed:      make(chan struct{}),
 		reconcileC:   make(chan struct{}, 1),
 		events:       make(chan StreamEvent, normalized.EventBuffer),
+		typedEvents:  make(chan TypedStreamEvent, normalized.EventBuffer),
 		states:       make(chan StreamStateEvent, normalized.StateBuffer),
 		errors:       make(chan StreamErrorEvent, normalized.ErrorBuffer),
 		gaps:         make(chan GapEvent, normalized.GapBuffer),
@@ -138,6 +141,9 @@ func normalizeStreamOptions(opts StreamSessionOptions) (StreamSessionOptions, er
 	}
 	if opts.DeliveryPolicy != DeliveryPolicyStrict && opts.DeliveryPolicy != DeliveryPolicyLatestByStream {
 		return StreamSessionOptions{}, fmt.Errorf("%w: unsupported policy %q", ErrInvalidDeliveryPolicy, opts.DeliveryPolicy)
+	}
+	if err := opts.TypedDelivery.validateForClass(opts.Class); err != nil {
+		return StreamSessionOptions{}, err
 	}
 	if opts.AckTimeout < 0 || opts.RequestInterval < 0 || opts.MaxBatchSize < 0 || opts.MaxStreams < 0 || opts.EventBuffer < 0 || opts.StateBuffer < 0 || opts.ErrorBuffer < 0 || opts.GapBuffer < 0 || opts.ObserverBuffer < 0 {
 		return StreamSessionOptions{}, fmt.Errorf("%w: durations and capacities must not be negative", ErrInvalidStreamOptions)
@@ -177,6 +183,9 @@ func normalizeStreamOptions(opts StreamSessionOptions) (StreamSessionOptions, er
 		}
 		if opts.DeliveryPolicy == DeliveryPolicyLatestByStream && !sub.supportsLatestValueDelivery() {
 			return StreamSessionOptions{}, fmt.Errorf("%w: stream %q requires strict delivery", ErrInvalidDeliveryPolicy, sub.String())
+		}
+		if !opts.TypedDelivery.supportsSubscription(sub) {
+			return StreamSessionOptions{}, fmt.Errorf("%w: stream %q does not match typed delivery %q", ErrInvalidSubscription, sub.String(), opts.TypedDelivery)
 		}
 		seen[sub.String()] = struct{}{}
 	}
@@ -306,14 +315,15 @@ func (s *StreamSession) Close() error {
 	return nil
 }
 
-func (s *StreamSession) Done() <-chan struct{}           { return s.done }
-func (s *StreamSession) Events() <-chan StreamEvent      { return s.events }
-func (s *StreamSession) States() <-chan StreamStateEvent { return s.states }
-func (s *StreamSession) Errors() <-chan StreamErrorEvent { return s.errors }
-func (s *StreamSession) Gaps() <-chan GapEvent           { return s.gaps }
-func (s *StreamSession) State() StreamSessionState       { s.mu.Lock(); defer s.mu.Unlock(); return s.state }
-func (s *StreamSession) Generation() uint64              { s.mu.Lock(); defer s.mu.Unlock(); return s.generation }
-func (s *StreamSession) TerminalError() error            { s.mu.Lock(); defer s.mu.Unlock(); return s.terminalErr }
+func (s *StreamSession) Done() <-chan struct{}                { return s.done }
+func (s *StreamSession) Events() <-chan StreamEvent           { return s.events }
+func (s *StreamSession) TypedEvents() <-chan TypedStreamEvent { return s.typedEvents }
+func (s *StreamSession) States() <-chan StreamStateEvent      { return s.states }
+func (s *StreamSession) Errors() <-chan StreamErrorEvent      { return s.errors }
+func (s *StreamSession) Gaps() <-chan GapEvent                { return s.gaps }
+func (s *StreamSession) State() StreamSessionState            { s.mu.Lock(); defer s.mu.Unlock(); return s.state }
+func (s *StreamSession) Generation() uint64                   { s.mu.Lock(); defer s.mu.Unlock(); return s.generation }
+func (s *StreamSession) TerminalError() error                 { s.mu.Lock(); defer s.mu.Unlock(); return s.terminalErr }
 func (s *StreamSession) DesiredSubscriptions() []Subscription {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -460,6 +470,9 @@ func (s *StreamSession) SetCombined(ctx context.Context, enabled bool) error {
 	if err := validateCallContext(ctx); err != nil {
 		return err
 	}
+	if s.opts.TypedDelivery != TypedDeliveryDisabled && !enabled {
+		return fmt.Errorf("%w: typed delivery requires combined streams", ErrInvalidStreamOptions)
+	}
 	_, err := s.sendProtocolRequest(ctx, methodSetProperty, []interface{}{"combined", enabled})
 	return err
 }
@@ -487,6 +500,9 @@ func (s *StreamSession) validateSubscriptions(subscriptions []Subscription) erro
 		}
 		if s.opts.DeliveryPolicy == DeliveryPolicyLatestByStream && !sub.supportsLatestValueDelivery() {
 			return fmt.Errorf("%w: stream %q requires strict delivery", ErrInvalidDeliveryPolicy, sub.String())
+		}
+		if !s.opts.TypedDelivery.supportsSubscription(sub) {
+			return fmt.Errorf("%w: stream %q does not match typed delivery %q", ErrInvalidSubscription, sub.String(), s.opts.TypedDelivery)
 		}
 	}
 	return nil
@@ -741,21 +757,20 @@ func (s *StreamSession) frameLoop(ctx context.Context) {
 }
 
 func (s *StreamSession) handleFrame(frame managedws.Frame) {
+	if s.opts.TypedDelivery != TypedDeliveryDisabled {
+		s.handleTypedFrame(frame)
+		return
+	}
+	s.handleGenericFrame(frame)
+}
+
+func (s *StreamSession) handleGenericFrame(frame managedws.Frame) {
 	var envelope wireEnvelope
 	if err := json.Unmarshal(frame.Payload, &envelope); err != nil {
 		s.emitError(newStreamError(StreamErrorProtocol, "", 0, frame.Generation, fmt.Errorf("decode websocket payload: %w", err)))
 		return
 	}
-	if envelope.ID != nil {
-		s.deliverResponse(frame.Generation, *envelope.ID, envelope)
-		return
-	}
-	if envelope.Code != nil {
-		err := &StreamError{Kind: StreamErrorRejected, Generation: frame.Generation, Code: *envelope.Code, Message: envelope.Msg, Err: ErrRequestRejected}
-		s.emitError(err)
-		s.mu.Lock()
-		s.failPendingLocked(err)
-		s.mu.Unlock()
+	if s.handleProtocolEnvelope(frame.Generation, envelope.ID, envelope.Result, envelope.Code, envelope.Msg) {
 		return
 	}
 
@@ -773,12 +788,115 @@ func (s *StreamSession) handleFrame(frame managedws.Frame) {
 	}
 	s.stats.eventsReceived.Add(1)
 	if !s.publishEvent(event) {
-		s.stats.eventBufferOverflows.Add(1)
-		err := newStreamError(StreamErrorEventOverflow, "", 0, frame.Generation, ErrEventBufferFull)
-		s.emitError(err)
-		s.emitGap(GapEvent{Reason: GapReasonEventOverflow, FromGeneration: frame.Generation, At: time.Now(), Err: err})
-		_ = s.conn.Interrupt(err)
+		s.handleEventOverflow(frame.Generation)
 	}
+}
+
+func (s *StreamSession) handleTypedFrame(frame managedws.Frame) {
+	raw := json.RawMessage(frame.Payload)
+	switch s.opts.TypedDelivery {
+	case TypedDeliveryBookTicker:
+		var envelope typedBookTickerEnvelope
+		if err := json.Unmarshal(frame.Payload, &envelope); err != nil {
+			s.handleTypedDecodeFailure(frame, err)
+			return
+		}
+		if s.handleProtocolEnvelope(frame.Generation, envelope.ID, envelope.Result, envelope.Code, envelope.Msg) {
+			return
+		}
+		if !s.opts.TypedDelivery.supportsStreamName(envelope.Stream) {
+			s.handleTypedDecodeFailure(frame, fmt.Errorf("typed delivery %q cannot decode stream %q", s.opts.TypedDelivery, envelope.Stream))
+			return
+		}
+		event := TypedStreamEvent{
+			Generation: frame.Generation,
+			Stream:     envelope.Stream,
+			Raw:        raw,
+			ReceivedAt: frame.ReceivedAt,
+			Kind:       TypedDeliveryBookTicker,
+			BookTicker: envelope.Data,
+		}
+		s.stats.eventsReceived.Add(1)
+		if !s.publishTypedEvent(event) {
+			s.handleEventOverflow(frame.Generation)
+		}
+	case TypedDeliveryAggTrade:
+		var envelope typedAggTradeEnvelope
+		if err := json.Unmarshal(frame.Payload, &envelope); err != nil {
+			s.handleTypedDecodeFailure(frame, err)
+			return
+		}
+		if s.handleProtocolEnvelope(frame.Generation, envelope.ID, envelope.Result, envelope.Code, envelope.Msg) {
+			return
+		}
+		if !s.opts.TypedDelivery.supportsStreamName(envelope.Stream) {
+			s.handleTypedDecodeFailure(frame, fmt.Errorf("typed delivery %q cannot decode stream %q", s.opts.TypedDelivery, envelope.Stream))
+			return
+		}
+		event := TypedStreamEvent{
+			Generation: frame.Generation,
+			Stream:     envelope.Stream,
+			Raw:        raw,
+			ReceivedAt: frame.ReceivedAt,
+			Kind:       TypedDeliveryAggTrade,
+			AggTrade:   aggTradeEventFromWire(envelope.Data),
+		}
+		s.stats.eventsReceived.Add(1)
+		if !s.publishTypedEvent(event) {
+			s.handleEventOverflow(frame.Generation)
+		}
+	default:
+		s.emitError(newStreamError(StreamErrorProtocol, "", 0, frame.Generation, fmt.Errorf("unsupported typed delivery mode %q", s.opts.TypedDelivery)))
+	}
+}
+
+func (s *StreamSession) handleTypedDecodeFailure(frame managedws.Frame, decodeErr error) {
+	// Cold path: recover only the generic envelope metadata needed to preserve
+	// protocol responses and to hand an application decode failure to callers.
+	var envelope wireEnvelope
+	if err := json.Unmarshal(frame.Payload, &envelope); err != nil {
+		s.emitError(newStreamError(StreamErrorProtocol, "", 0, frame.Generation, fmt.Errorf("decode websocket payload: %w", err)))
+		return
+	}
+	if s.handleProtocolEnvelope(frame.Generation, envelope.ID, envelope.Result, envelope.Code, envelope.Msg) {
+		return
+	}
+	event := TypedStreamEvent{
+		Generation: frame.Generation,
+		Stream:     envelope.Stream,
+		Raw:        json.RawMessage(frame.Payload),
+		ReceivedAt: frame.ReceivedAt,
+		Kind:       s.opts.TypedDelivery,
+		DecodeErr:  fmt.Errorf("%w: %v", ErrApplicationDecode, decodeErr),
+	}
+	s.stats.eventsReceived.Add(1)
+	if !s.publishTypedEvent(event) {
+		s.handleEventOverflow(frame.Generation)
+	}
+}
+
+func (s *StreamSession) handleProtocolEnvelope(generation uint64, id *uint64, result json.RawMessage, code *int, msg string) bool {
+	if id != nil {
+		s.deliverResponse(generation, *id, result, code, msg)
+		return true
+	}
+	if code != nil {
+		err := &StreamError{Kind: StreamErrorRejected, Generation: generation, Code: *code, Message: msg, Err: ErrRequestRejected}
+		s.emitError(err)
+		s.mu.Lock()
+		s.failPendingLocked(err)
+		s.mu.Unlock()
+		return true
+	}
+	return false
+}
+
+func (s *StreamSession) handleEventOverflow(generation uint64) {
+	s.stats.eventBufferOverflows.Add(1)
+	err := newStreamError(StreamErrorEventOverflow, "", 0, generation, ErrEventBufferFull)
+	s.emitError(err)
+	s.emitGap(GapEvent{Reason: GapReasonEventOverflow, FromGeneration: generation, At: time.Now(), Err: err})
+	_ = s.conn.Interrupt(err)
 }
 
 func (s *StreamSession) publishEvent(event StreamEvent) bool {
@@ -805,6 +923,30 @@ func (s *StreamSession) publishEvent(event StreamEvent) bool {
 	return true
 }
 
+func (s *StreamSession) publishTypedEvent(event TypedStreamEvent) bool {
+	if s.opts.DeliveryPolicy == DeliveryPolicyLatestByStream && isLatestValueStream(event.Stream) && s.replacePendingTypedCoalesced(event) {
+		return true
+	}
+	s.outputMu.Lock()
+	if s.outputClosed {
+		s.outputMu.Unlock()
+		return false
+	}
+	select {
+	case s.typedEvents <- event:
+		s.outputMu.Unlock()
+		s.stats.eventsDelivered.Add(1)
+		return true
+	default:
+		s.outputMu.Unlock()
+	}
+	if s.opts.DeliveryPolicy != DeliveryPolicyLatestByStream || !isLatestValueStream(event.Stream) {
+		return false
+	}
+	s.coalesceTypedEvent(event)
+	return true
+}
+
 func (s *StreamSession) replacePendingCoalesced(event StreamEvent) bool {
 	s.coalesceMu.Lock()
 	if _, ok := s.coalesced[event.Stream]; !ok {
@@ -813,6 +955,24 @@ func (s *StreamSession) replacePendingCoalesced(event StreamEvent) bool {
 	}
 	s.coalesceSequence++
 	s.coalesced[event.Stream] = coalescedEvent{event: event, version: s.coalesceSequence}
+	s.coalesceMu.Unlock()
+	s.stats.eventsCoalesced.Add(1)
+	s.stats.eventsReplaced.Add(1)
+	select {
+	case s.coalesceWake <- struct{}{}:
+	default:
+	}
+	return true
+}
+
+func (s *StreamSession) replacePendingTypedCoalesced(event TypedStreamEvent) bool {
+	s.coalesceMu.Lock()
+	if _, ok := s.coalesced[event.Stream]; !ok {
+		s.coalesceMu.Unlock()
+		return false
+	}
+	s.coalesceSequence++
+	s.coalesced[event.Stream] = coalescedEvent{typedEvent: event, typed: true, version: s.coalesceSequence}
 	s.coalesceMu.Unlock()
 	s.stats.eventsCoalesced.Add(1)
 	s.stats.eventsReplaced.Add(1)
@@ -836,6 +996,25 @@ func (s *StreamSession) coalesceEvent(event StreamEvent) {
 	_, replaced := s.coalesced[event.Stream]
 	s.coalesceSequence++
 	s.coalesced[event.Stream] = coalescedEvent{event: event, version: s.coalesceSequence}
+	if !replaced {
+		s.coalesceOrder = append(s.coalesceOrder, event.Stream)
+	}
+	s.coalesceMu.Unlock()
+	s.stats.eventsCoalesced.Add(1)
+	if replaced {
+		s.stats.eventsReplaced.Add(1)
+	}
+	select {
+	case s.coalesceWake <- struct{}{}:
+	default:
+	}
+}
+
+func (s *StreamSession) coalesceTypedEvent(event TypedStreamEvent) {
+	s.coalesceMu.Lock()
+	_, replaced := s.coalesced[event.Stream]
+	s.coalesceSequence++
+	s.coalesced[event.Stream] = coalescedEvent{typedEvent: event, typed: true, version: s.coalesceSequence}
 	if !replaced {
 		s.coalesceOrder = append(s.coalesceOrder, event.Stream)
 	}
@@ -910,8 +1089,21 @@ func (s *StreamSession) tryDeliverCoalesced(streamName string, version uint64) (
 		s.coalesceMu.Unlock()
 		return false, false
 	}
-	select {
-	case s.events <- current.event:
+	deliveredNow := false
+	if current.typed {
+		select {
+		case s.typedEvents <- current.typedEvent:
+			deliveredNow = true
+		default:
+		}
+	} else {
+		select {
+		case s.events <- current.event:
+			deliveredNow = true
+		default:
+		}
+	}
+	if deliveredNow {
 		delete(s.coalesced, streamName)
 		if len(s.coalesceOrder) > 0 && s.coalesceOrder[0] == streamName {
 			s.coalesceOrder = s.coalesceOrder[1:]
@@ -919,11 +1111,10 @@ func (s *StreamSession) tryDeliverCoalesced(streamName string, version uint64) (
 		s.outputMu.Unlock()
 		s.coalesceMu.Unlock()
 		return true, false
-	default:
-		s.outputMu.Unlock()
-		s.coalesceMu.Unlock()
-		return false, false
 	}
+	s.outputMu.Unlock()
+	s.coalesceMu.Unlock()
+	return false, false
 }
 
 func (s *StreamSession) peekCoalesced() (string, coalescedEvent, bool) {
@@ -963,7 +1154,7 @@ func (s *StreamSession) completeCoalescedDelivery(streamName string, version uin
 	}
 }
 
-func (s *StreamSession) deliverResponse(generation, id uint64, envelope wireEnvelope) {
+func (s *StreamSession) deliverResponse(generation, id uint64, result json.RawMessage, code *int, msg string) {
 	s.mu.Lock()
 	pending, ok := s.pending[id]
 	if ok && pending.generation == generation {
@@ -973,10 +1164,10 @@ func (s *StreamSession) deliverResponse(generation, id uint64, envelope wireEnve
 	if !ok || pending.generation != generation {
 		return
 	}
-	response := protocolResponse{result: envelope.Result}
-	if envelope.Code != nil {
-		response.code = *envelope.Code
-		response.msg = envelope.Msg
+	response := protocolResponse{result: result}
+	if code != nil {
+		response.code = *code
+		response.msg = msg
 	}
 	pending.result <- response
 }
@@ -1206,6 +1397,7 @@ func (s *StreamSession) finish() {
 		s.outputClosed = true
 		close(s.done)
 		close(s.events)
+		close(s.typedEvents)
 		close(s.states)
 		close(s.errors)
 		close(s.gaps)

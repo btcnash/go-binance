@@ -154,6 +154,9 @@ type StreamSessionOptions struct {
 
 	InitialSubscriptions []Subscription
 	DeliveryPolicy       DeliveryPolicy
+	// TypedDelivery enables the optional homogeneous managed typed decoder.
+	// The zero value keeps the existing generic StreamEvent/Data contract.
+	TypedDelivery TypedDeliveryMode
 
 	// ConnectionOptions are passed to the M1 managed transport. When Dialer is
 	// nil, a Gorilla dialer is created for Endpoint/Class.
@@ -210,6 +213,7 @@ type StreamSession struct {
 
 	reconcileC   chan struct{}
 	events       chan StreamEvent
+	typedEvents  chan TypedStreamEvent
 	states       chan StreamStateEvent
 	errors       chan StreamErrorEvent
 	gaps         chan GapEvent

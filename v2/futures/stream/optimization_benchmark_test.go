@@ -127,3 +127,44 @@ func BenchmarkManagedAggTradeTypedDTO(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkManagedKlineGenericDTO(b *testing.B) {
+	session := &StreamSession{
+		events: make(chan StreamEvent, 1),
+		errors: make(chan StreamErrorEvent, 1),
+		gaps:   make(chan GapEvent, 1),
+	}
+	frame := managedws.Frame{
+		Generation: 1,
+		Type:       managedws.TextMessage,
+		Payload:    []byte(`{"stream":"btcusdt@kline_1m","data":{"e":"kline","E":1499404907056,"s":"BTCUSDT","k":{"t":1499404860000,"T":1499404919999,"s":"BTCUSDT","i":"1m","f":77462,"L":77465,"o":"0.10278577","c":"0.10278645","h":"0.10278712","l":"0.10278518","v":"17.47929838","n":4,"x":false,"q":"1.79662878","V":"2.34879839","Q":"0.24142166"}}}`),
+		ReceivedAt: time.Unix(1, 0),
+	}
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		session.handleFrame(frame)
+		event := <-session.events
+		var dto WsKlineEvent
+		if err := json.Unmarshal(event.Data, &dto); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkManagedKlineTypedDTO(b *testing.B) {
+	session := newTypedTestSession(TypedDeliveryKline, DeliveryPolicyStrict, 1)
+	frame := managedws.Frame{
+		Generation: 1,
+		Type:       managedws.TextMessage,
+		Payload:    []byte(`{"stream":"btcusdt@kline_1m","data":{"e":"kline","E":1499404907056,"s":"BTCUSDT","k":{"t":1499404860000,"T":1499404919999,"s":"BTCUSDT","i":"1m","f":77462,"L":77465,"o":"0.10278577","c":"0.10278645","h":"0.10278712","l":"0.10278518","v":"17.47929838","n":4,"x":false,"q":"1.79662878","V":"2.34879839","Q":"0.24142166"}}}`),
+		ReceivedAt: time.Unix(1, 0),
+	}
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		session.handleFrame(frame)
+		event := <-session.typedEvents
+		if event.Kline.Kline.Interval == "" || !event.Kline.Kline.IsFinalPresent {
+			b.Fatal("decoded invalid kline")
+		}
+	}
+}

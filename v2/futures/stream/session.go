@@ -845,6 +845,31 @@ func (s *StreamSession) handleTypedFrame(frame managedws.Frame) {
 		if !s.publishTypedEvent(event) {
 			s.handleEventOverflow(frame.Generation)
 		}
+	case TypedDeliveryKline:
+		var envelope typedKlineEnvelope
+		if err := json.Unmarshal(frame.Payload, &envelope); err != nil {
+			s.handleTypedDecodeFailure(frame, err)
+			return
+		}
+		if s.handleProtocolEnvelope(frame.Generation, envelope.ID, envelope.Result, envelope.Code, envelope.Msg) {
+			return
+		}
+		if !s.opts.TypedDelivery.supportsStreamName(envelope.Stream) {
+			s.handleTypedDecodeFailure(frame, fmt.Errorf("typed delivery %q cannot decode stream %q", s.opts.TypedDelivery, envelope.Stream))
+			return
+		}
+		event := TypedStreamEvent{
+			Generation: frame.Generation,
+			Stream:     envelope.Stream,
+			Raw:        raw,
+			ReceivedAt: frame.ReceivedAt,
+			Kind:       TypedDeliveryKline,
+			Kline:      klineEventFromWire(envelope.Data),
+		}
+		s.stats.eventsReceived.Add(1)
+		if !s.publishTypedEvent(event) {
+			s.handleEventOverflow(frame.Generation)
+		}
 	default:
 		s.emitError(newStreamError(StreamErrorProtocol, "", 0, frame.Generation, fmt.Errorf("unsupported typed delivery mode %q", s.opts.TypedDelivery)))
 	}

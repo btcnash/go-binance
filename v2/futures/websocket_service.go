@@ -1494,6 +1494,7 @@ type WsOrderTradeUpdate struct {
 	BidsNotional         string             `json:"b"`   // Bids Notional
 	AsksNotional         string             `json:"a"`   // Asks Notional
 	IsMaker              bool               `json:"m"`   // Is this trade the maker side?
+	RawM                 json.RawMessage    `json:"M"`   // Reserved field; preserve its wire value
 	IsReduceOnly         bool               `json:"R"`   // Is this reduce only
 	WorkingType          WorkingType        `json:"wt"`  // Stop Price Working Type
 	OriginalType         OrderType          `json:"ot"`  // Original Order Type

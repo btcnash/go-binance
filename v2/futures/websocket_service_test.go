@@ -1,6 +1,7 @@
 package futures
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -1938,6 +1939,69 @@ func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdate() {
 		},
 	}
 	s.testWsUserDataServe(data, expectedEvent)
+}
+
+func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateAmendmentWithUpperM() {
+	data := []byte(`{
+		"e":"ORDER_TRADE_UPDATE",
+		"o":{
+			"M":"8059271213674554961",
+			"m":false,
+			"x":"AMENDMENT",
+			"X":"NEW",
+			"p":"75738.4",
+			"q":"0.0176"
+		}
+	}`)
+
+	var event WsUserDataEvent
+	err := json.Unmarshal(data, &event)
+	s.r().NoError(err)
+	s.r().Equal(OrderExecutionType("AMENDMENT"), event.OrderTradeUpdate.ExecutionType)
+	s.r().Equal(OrderStatusType("NEW"), event.OrderTradeUpdate.Status)
+	s.r().False(event.OrderTradeUpdate.IsMaker)
+	s.r().Equal("75738.4", event.OrderTradeUpdate.OriginalPrice)
+	s.r().Equal("0.0176", event.OrderTradeUpdate.OriginalQty)
+	s.r().Equal(json.RawMessage(`"8059271213674554961"`), event.OrderTradeUpdate.RawM)
+}
+
+func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateUpperMDoesNotAffectMakerTrue() {
+	data := []byte(`{
+		"e":"ORDER_TRADE_UPDATE",
+		"o":{"M":"8059271213674554961","m":true}
+	}`)
+
+	var event WsUserDataEvent
+	err := json.Unmarshal(data, &event)
+	s.r().NoError(err)
+	s.r().True(event.OrderTradeUpdate.IsMaker)
+	s.r().Equal(json.RawMessage(`"8059271213674554961"`), event.OrderTradeUpdate.RawM)
+}
+
+func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateWithoutUpperM() {
+	data := []byte(`{
+		"e":"ORDER_TRADE_UPDATE",
+		"o":{"m":false}
+	}`)
+
+	var event WsUserDataEvent
+	err := json.Unmarshal(data, &event)
+	s.r().NoError(err)
+	s.r().False(event.OrderTradeUpdate.IsMaker)
+	s.r().Nil(event.OrderTradeUpdate.RawM)
+}
+
+func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateUpperMBoolean() {
+	data := []byte(`{
+		"e":"ORDER_TRADE_UPDATE",
+		"o":{"M":false,"m":false}
+	}`)
+
+	var event WsUserDataEvent
+	err := json.Unmarshal(data, &event)
+	s.r().NoError(err)
+	s.r().False(event.OrderTradeUpdate.IsMaker)
+	s.r().Equal(json.RawMessage(`false`), event.OrderTradeUpdate.RawM)
 }
 
 func (s *websocketServiceTestSuite) TestWsUserDataServeAccountConfigUpdate() {

@@ -143,6 +143,10 @@ func TestContextServiceMethodsPropagateCanceledCallerWithoutWireSend(t *testing.
 	if _, err := orderCancel.SyncDoContext(ctx, "context-cancel-order", NewOrderCancelRequest().Symbol("BTCUSDT").OrderID(1)); err == nil {
 		t.Fatal("order cancel context call unexpectedly succeeded")
 	}
+	orderModify, _ := NewOrderModifyWsServiceWithSession(session, "key", "secret")
+	if _, err := orderModify.SyncDoContext(ctx, "context-modify-order", NewOrderModifyWsRequest().Symbol("BTCUSDT").Side(SideTypeBuy).Quantity("1").Price("50000").OrderID(1)); err == nil {
+		t.Fatal("order modify context call unexpectedly succeeded")
+	}
 	algoCancel, _ := NewAlgoOrderCancelWsServiceWithSession(session, "key", "secret")
 	if _, err := algoCancel.SyncDoContext(ctx, "context-cancel-algo", NewAlgoOrderCancelWsRequest().AlgoID(2)); err == nil {
 		t.Fatal("algo cancel context call unexpectedly succeeded")
@@ -160,6 +164,7 @@ func TestContextServiceMethodsPropagateCanceledCallerWithoutWireSend(t *testing.
 }
 
 var _ func(*OrderPlaceWsService, context.Context, string, *OrderPlaceWsRequest) (*CreateOrderWsResponse, error) = (*OrderPlaceWsService).SyncDoContext
+var _ func(*OrderModifyWsService, context.Context, string, *OrderModifyWsRequest) (*OrderModifyWsResponse, error) = (*OrderModifyWsService).SyncDoContext
 var _ func(*AlgoOrderPlaceWsService, context.Context, string, *AlgoOrderPlaceWsRequest) (*CreateAlgoOrderWsResponse, error) = (*AlgoOrderPlaceWsService).SyncDoContext
 var _ func(*OrderCancelWsService, context.Context, string, *OrderCancelRequest) (*OrderCancelWsResponse, error) = (*OrderCancelWsService).SyncDoContext
 var _ func(*AlgoOrderCancelWsService, context.Context, string, *AlgoOrderCancelWsRequest) (*CancelAlgoOrderWsResponse, error) = (*AlgoOrderCancelWsService).SyncDoContext

@@ -267,6 +267,7 @@ func (s *baseOrderTestSuite) assertOrderEqual(e, a *Order) {
 	r.Equal(e.Symbol, a.Symbol, "Symbol")
 	r.Equal(e.OrderID, a.OrderID, "OrderID")
 	r.Equal(e.ClientOrderID, a.ClientOrderID, "ClientOrderID")
+	r.Equal(e.ModifyID, a.ModifyID, "ModifyID")
 	r.Equal(e.Price, a.Price, "Price")
 	r.Equal(e.ReduceOnly, a.ReduceOnly, "ReduceOnly")
 	r.Equal(e.OrigQuantity, a.OrigQuantity, "OrigQuantity")
@@ -499,6 +500,7 @@ func (s *orderServiceTestSuite) TestModifyOrder() {
 		"pair": "BTCUSDT",
 		"status": "NEW",
 		"clientOrderId": "LJ9R4QZDihCaS8UAOOLpgW",
+		"modifyId": 123,
 		"price": "30005",
 		"avgPrice": "0.0",
 		"origQty": "1",
@@ -530,6 +532,7 @@ func (s *orderServiceTestSuite) TestModifyOrder() {
 	quantity := "1"
 	price := "30005"
 	priceMatch := PriceMatchTypeNone
+	modifyID := int64(123)
 	s.assertReq(func(r *request) {
 		e := newSignedRequest().setFormParams(params{
 			"orderId":           orderID,
@@ -539,6 +542,7 @@ func (s *orderServiceTestSuite) TestModifyOrder() {
 			"quantity":          quantity,
 			"price":             price,
 			"priceMatch":        priceMatch,
+			"modifyId":          modifyID,
 		})
 		s.assertRequestEqual(e, r)
 	})
@@ -553,6 +557,7 @@ func (s *orderServiceTestSuite) TestModifyOrder() {
 		Pair:                    "BTCUSDT",
 		Status:                  OrderStatusTypeNew,
 		ClientOrderID:           origClientOrderID,
+		ModifyID:                modifyID,
 		Price:                   price,
 		AveragePrice:            "0.0",
 		OriginalQuantity:        quantity,
@@ -980,4 +985,30 @@ func (s *orderServiceTestSuite) TestModifyBatchOrders() {
 		},
 		res.Errors)
 
+}
+
+func (s *orderServiceTestSuite) TestGetOrderModifyHistory() {
+	data := []byte(`[{"amendmentId":5363,"symbol":"BTCUSDT","pair":"BTCUSDT","orderId":20072994037,"clientOrderId":"LJ9R4QZDihCaS8UAOOLpgW","time":1629184560899,"amendment":{"price":{"before":"30004","after":"30003.2"},"origQty":{"before":"1","after":"1"},"count":3,"modifyId":123}}]`)
+	s.mockDo(data, nil)
+	defer s.assertDo()
+	const symbol = "BTCUSDT"
+	const origClientOrderID = "LJ9R4QZDihCaS8UAOOLpgW"
+	const orderID int64 = 20072994037
+	const startTime int64 = 1623319461670
+	const endTime int64 = 1641782889000
+	const limit = 100
+	const recvWindow int64 = 5000
+	s.assertReq(func(r *request) {
+		e := newSignedRequest().setParams(params{"symbol": symbol, "orderId": orderID, "origClientOrderId": origClientOrderID, "startTime": startTime, "endTime": endTime, "limit": limit, "recvWindow": recvWindow})
+		s.assertRequestEqual(e, r)
+	})
+	res, err := s.client.NewGetOrderModifyHistoryService().Symbol(symbol).OrderID(orderID).OrigClientOrderID(origClientOrderID).StartTime(startTime).EndTime(endTime).Limit(limit).Do(newContext(), WithRecvWindow(recvWindow))
+	r := s.r()
+	r.NoError(err)
+	r.Len(res, 1)
+	r.Equal(int64(5363), res[0].AmendmentID)
+	r.Equal("30004", res[0].Amendment.Price.Before)
+	r.Equal("30003.2", res[0].Amendment.Price.After)
+	r.Equal(int64(3), res[0].Amendment.Count)
+	r.Equal(int64(123), res[0].Amendment.ModifyID)
 }

@@ -274,6 +274,7 @@ type ModifyOrderService struct {
 	c                 *Client
 	orderID           *int64
 	origClientOrderID *string
+	modifyID          *int64
 	symbol            string
 	side              SideType
 	quantity          string
@@ -296,6 +297,12 @@ func (s *ModifyOrderService) OrderID(orderID int64) *ModifyOrderService {
 // OrigClientOrderID is not necessary if OrderID is provided
 func (s *ModifyOrderService) OrigClientOrderID(origClientOrderID string) *ModifyOrderService {
 	s.origClientOrderID = &origClientOrderID
+	return s
+}
+
+// ModifyID set user-defined modification identifier returned as-is by Binance.
+func (s *ModifyOrderService) ModifyID(modifyID int64) *ModifyOrderService {
+	s.modifyID = &modifyID
 	return s
 }
 
@@ -339,6 +346,9 @@ func (s *ModifyOrderService) modifyOrder(ctx context.Context, endpoint string, o
 	}
 	if s.origClientOrderID != nil {
 		m["origClientOrderId"] = *s.origClientOrderID
+	}
+	if s.modifyID != nil {
+		m["modifyId"] = *s.modifyID
 	}
 	if s.price != nil {
 		m["price"] = *s.price
@@ -384,6 +394,7 @@ type ModifyOrderResponse struct {
 	Pair                    string           `json:"pair"`
 	Status                  OrderStatusType  `json:"status"`
 	ClientOrderID           string           `json:"clientOrderId"`
+	ModifyID                int64            `json:"modifyId"`
 	Price                   string           `json:"price"`
 	AveragePrice            string           `json:"avgPrice"`
 	OriginalQuantity        string           `json:"origQty"`

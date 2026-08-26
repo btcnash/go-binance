@@ -107,6 +107,7 @@ const (
 	OrderExecutionTypeCalculated  OrderExecutionType = "CALCULATED"
 	OrderExecutionTypeExpired     OrderExecutionType = "EXPIRED"
 	OrderExecutionTypeTrade       OrderExecutionType = "TRADE"
+	OrderExecutionTypeAmendment   OrderExecutionType = "AMENDMENT"
 
 	OrderStatusTypeNew             OrderStatusType = "NEW"
 	OrderStatusTypePartiallyFilled OrderStatusType = "PARTIALLY_FILLED"
@@ -476,6 +477,11 @@ func (c *Client) NewCreateOrderService() *CreateOrderService {
 // NewModifyOrderService init creating order service
 func (c *Client) NewModifyOrderService() *ModifyOrderService {
 	return &ModifyOrderService{c: c}
+}
+
+// NewGetOrderModifyHistoryService init order modification history service.
+func (c *Client) NewGetOrderModifyHistoryService() *GetOrderModifyHistoryService {
+	return &GetOrderModifyHistoryService{c: c}
 }
 
 // NewCreateBatchOrdersService init creating batch order service

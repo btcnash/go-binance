@@ -131,6 +131,10 @@ func TestWithSessionConstructorsReuseOnePhysicalConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	orderModify, err := NewOrderModifyWsServiceWithSession(session, "key", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
 	algoPlace, err := NewAlgoOrderPlaceWsServiceWithSession(session, "key", "secret")
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +153,7 @@ func TestWithSessionConstructorsReuseOnePhysicalConnection(t *testing.T) {
 	}
 
 	clients := []interface{ Close() error }{
-		account.c, orderPlace.c, algoPlace.c, orderCancel.c, algoCancel.c, orderStatus.c,
+		account.c, orderPlace.c, orderModify.c, algoPlace.c, orderCancel.c, algoCancel.c, orderStatus.c,
 	}
 	for _, client := range clients {
 		if err := client.Close(); err != nil {
@@ -157,7 +161,7 @@ func TestWithSessionConstructorsReuseOnePhysicalConnection(t *testing.T) {
 		}
 	}
 	if got := server.connections.Load(); got != 1 {
-		t.Fatalf("connections after six constructors = %d, want 1", got)
+		t.Fatalf("connections after seven constructors = %d, want 1", got)
 	}
 	if got := session.State(); got != apiws.StateReady {
 		t.Fatalf("session state after closing borrowed clients = %s, want ready", got)

@@ -69,6 +69,9 @@ const (
 	// OrderPlaceFuturesWsApiMethod define method for creation order via websocket API
 	OrderPlaceFuturesWsApiMethod WsApiMethodType = "order.place"
 
+	// OrderModifyFuturesWsApiMethod defines order modification via USDⓈ-M Futures WSAPI.
+	OrderModifyFuturesWsApiMethod WsApiMethodType = "order.modify"
+
 	// CancelFuturesWsApiMethod define method for cancel order via websocket API
 	CancelFuturesWsApiMethod WsApiMethodType = "order.cancel"
 

@@ -267,7 +267,6 @@ func (s *baseOrderTestSuite) assertOrderEqual(e, a *Order) {
 	r.Equal(e.Symbol, a.Symbol, "Symbol")
 	r.Equal(e.OrderID, a.OrderID, "OrderID")
 	r.Equal(e.ClientOrderID, a.ClientOrderID, "ClientOrderID")
-	r.Equal(e.ModifyID, a.ModifyID, "ModifyID")
 	r.Equal(e.Price, a.Price, "Price")
 	r.Equal(e.ReduceOnly, a.ReduceOnly, "ReduceOnly")
 	r.Equal(e.OrigQuantity, a.OrigQuantity, "OrigQuantity")
@@ -548,7 +547,7 @@ func (s *orderServiceTestSuite) TestModifyOrder() {
 	})
 
 	res, err := s.client.NewModifyOrderService().OrderID(orderID).OrigClientOrderID(origClientOrderID).
-		Symbol(symbol).Side(side).Quantity(quantity).Price(price).PriceMatch(priceMatch).Do(newContext())
+		Symbol(symbol).Side(side).Quantity(quantity).Price(price).PriceMatch(priceMatch).ModifyID(modifyID).Do(newContext())
 	r := s.r()
 	r.NoError(err)
 	e := &ModifyOrderResponse{
@@ -589,6 +588,7 @@ func (s *baseOrderTestSuite) assertModifyOrderResponseEqual(e, a *ModifyOrderRes
 	r.Equal(e.Pair, a.Pair, "Pair")
 	r.Equal(e.Status, a.Status, "Status")
 	r.Equal(e.ClientOrderID, a.ClientOrderID, "ClientOrderID")
+	r.Equal(e.ModifyID, a.ModifyID, "ModifyID")
 	r.Equal(e.Price, a.Price, "Price")
 	r.Equal(e.AveragePrice, a.AveragePrice, "AveragePrice")
 	r.Equal(e.OriginalQuantity, a.OriginalQuantity, "OriginalQuantity")

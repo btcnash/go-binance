@@ -116,9 +116,21 @@ func newStartedSharedFuturesSession(t *testing.T, endpoint string) *managedfutur
 	return session
 }
 
+func waitForSharedSessionConnections(t *testing.T, server *sharedSessionTestServer, want int64) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for server.connections.Load() < want && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := server.connections.Load(); got < want {
+		t.Fatalf("connections = %d, want >= %d", got, want)
+	}
+}
+
 func TestWithSessionConstructorsReuseOnePhysicalConnection(t *testing.T) {
 	server := newSharedSessionTestServer(t, nil)
 	session := newStartedSharedFuturesSession(t, server.endpoint)
+	waitForSharedSessionConnections(t, server, 1)
 	if got := server.connections.Load(); got != 1 {
 		t.Fatalf("connections after session start = %d, want 1", got)
 	}

@@ -311,7 +311,9 @@ func (c *Connection) Interrupt(cause error) error {
 	state := c.state
 	generation := c.generation
 	c.stateMu.RUnlock()
-	if session == nil || state != StateReady {
+	// Frames can arrive after the physical session is installed but before the
+	// StateReady notification is observed by higher-level protocol code.
+	if session == nil || (state != StateConnected && state != StateReady) {
 		return ErrNotReady
 	}
 	session.fail(connectionError(ErrorInterrupted, generation, "interrupt", cause))

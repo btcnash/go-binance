@@ -521,13 +521,17 @@ func TestRequestIDCannotBeReusedWithinGenerationButCanAfterReconnect(t *testing.
 		t.Fatalf("same-generation reuse error = %v, want duplicate", err)
 	}
 	_, _ = session.Do(context.Background(), Request{ID: "disconnect-id", Method: "disconnect", Payload: requestPayload(t, "disconnect-id", "disconnect"), Outcome: OutcomeSafe})
+	deadline := time.Now().Add(time.Second)
+	for (session.Generation() < 2 || server.connections.Load() < 2) && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if session.Generation() < 2 || server.connections.Load() < 2 {
+		t.Fatalf("reconnect did not complete: generation=%d connections=%d", session.Generation(), server.connections.Load())
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := session.WaitReady(ctx); err != nil {
 		t.Fatalf("WaitReady after reconnect: %v", err)
-	}
-	if session.Generation() < 2 || server.connections.Load() < 2 {
-		t.Fatalf("generation=%d connections=%d", session.Generation(), server.connections.Load())
 	}
 	if _, err := session.Do(context.Background(), Request{ID: "reuse", Method: "time", Payload: requestPayload(t, "reuse", "time"), Outcome: OutcomeSafe}); err != nil {
 		t.Fatalf("reuse after reconnect: %v", err)

@@ -574,7 +574,9 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 		wrapped := privateError(ErrorEventOverflow, sourceID, frame.Generation, "deliver_event", ErrEventBufferFull)
 		s.emitError(wrapped)
 		s.emitGap(GapEvent{Reason: GapReasonEventOverflow, FromGeneration: frame.Generation, SourceIDs: candidateOrAll(sourceID, candidates, bindingIndex), At: time.Now(), Err: wrapped})
-		_ = s.conn.Interrupt(wrapped)
+		if err := s.conn.Interrupt(wrapped); err != nil {
+			s.emitError(privateError(ErrorTransport, sourceID, frame.Generation, "interrupt", err))
+		}
 		return
 	}
 

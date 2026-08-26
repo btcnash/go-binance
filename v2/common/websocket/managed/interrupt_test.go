@@ -49,3 +49,28 @@ func TestConnectionInterruptRequiresReadySession(t *testing.T) {
 		t.Fatalf("Interrupt() error = %v, want ErrNotReady", err)
 	}
 }
+
+func TestConnectionInterruptAllowsConnectedSession(t *testing.T) {
+	conn := mustNewConnection(t, &sequenceDialer{sockets: []Socket{newFakeSocket()}}, Options{
+		Heartbeat: HeartbeatOptions{Enabled: false},
+		Reconnect: ReconnectPolicy{Enabled: false},
+	})
+
+	socket := newFakeSocket()
+	session := newPhysicalSession(conn, context.Background(), 1, socket)
+	conn.stateMu.Lock()
+	conn.state = StateConnected
+	conn.generation = 1
+	conn.current = session
+	conn.currentGeneration.Store(1)
+	conn.stateMu.Unlock()
+
+	if err := conn.Interrupt(errors.New("protocol event arrived before ready state")); err != nil {
+		t.Fatalf("Interrupt() error = %v, want nil", err)
+	}
+	select {
+	case <-session.failureC:
+	case <-time.After(time.Second):
+		t.Fatal("Interrupt() did not fail the connected physical session")
+	}
+}

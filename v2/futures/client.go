@@ -388,9 +388,7 @@ func (c *Client) callAPI(ctx context.Context, r *request, opts ...RequestOption)
 		if e != nil {
 			c.debug("failed to unmarshal json: %s\n", e)
 		}
-		if !apiErr.IsValid() {
-			apiErr.Response = data
-		}
+		apiErr.Response = data
 		apiErr.StatusCode = res.StatusCode
 		apiErr.Header = res.Header.Clone()
 		return nil, &res.Header, apiErr

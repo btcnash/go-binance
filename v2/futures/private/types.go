@@ -253,13 +253,16 @@ const (
 	GapReasonMalformedEvent   GapReason = "malformed_event"
 )
 
-// GapEvent explicitly tells callers to reconcile account state.
+// GapEvent explicitly tells callers to reconcile account state. Raw is only
+// populated when the gap is caused by a malformed private event and follows
+// the same immutable session-owned data contract as Event.Raw.
 type GapEvent struct {
 	Reason         GapReason
 	FromGeneration uint64
 	SourceIDs      []string
 	At             time.Time
 	Err            error
+	Raw            json.RawMessage
 }
 
 // ListenKeyEventKind identifies lifecycle activity without exposing the raw

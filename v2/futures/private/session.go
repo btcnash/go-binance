@@ -542,9 +542,15 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 			_ = s.conn.Interrupt(wrapped)
 			return
 		}
-		wrapped := privateError(ErrorProtocol, "", frame.Generation, "decode_header", fmt.Errorf("%w: %v", ErrMalformedEvent, decodeErr))
+		malformedCause := decodeErr
+		if json.Valid(payload) {
+			malformedCause = errors.New("missing event type")
+		} else if malformedCause == nil {
+			malformedCause = errors.New("invalid user data event JSON")
+		}
+		wrapped := privateError(ErrorProtocol, "", frame.Generation, "decode_header", fmt.Errorf("%w: %w", ErrMalformedEvent, malformedCause))
 		s.emitError(wrapped)
-		s.emitGap(GapEvent{Reason: GapReasonMalformedEvent, FromGeneration: frame.Generation, SourceIDs: bindingIndex.allSourceIDs(), At: time.Now(), Err: wrapped})
+		s.emitGap(GapEvent{Reason: GapReasonMalformedEvent, FromGeneration: frame.Generation, SourceIDs: bindingIndex.allSourceIDs(), At: time.Now(), Err: wrapped, Raw: payload})
 		_ = s.conn.Interrupt(wrapped)
 		return
 	}
@@ -656,7 +662,7 @@ func (s *Session) keepAliveWithRetry(ctx context.Context, source *sourceRuntime,
 			s.emitListenKey(ListenKeyEvent{Kind: ListenKeyKeepAliveSucceeded, SourceID: source.spec.ID, Version: version, Attempt: attempt, At: time.Now()})
 			return true
 		}
-		lastErr = privateError(ErrorKeepAlive, source.spec.ID, s.Generation(), "keepalive", fmt.Errorf("%w: %v", ErrListenKeyKeepAlive, err))
+		lastErr = privateError(ErrorKeepAlive, source.spec.ID, s.Generation(), "keepalive", fmt.Errorf("%w: %w", ErrListenKeyKeepAlive, err))
 		s.emitListenKey(ListenKeyEvent{Kind: ListenKeyKeepAliveFailed, SourceID: source.spec.ID, Version: version, Attempt: attempt, At: time.Now(), Err: lastErr})
 		s.emitError(lastErr)
 		if classifier, ok := source.spec.Provider.(InvalidListenKeyClassifier); ok && classifier.IsInvalidListenKey(err) {

@@ -9,7 +9,7 @@ import (
 type APIError struct {
 	Code       int64       `json:"code"`
 	Message    string      `json:"msg"`
-	Response   []byte      `json:"-"` // Assign the body value when the Code and Message fields are invalid.
+	Response   []byte      `json:"-"` // Raw HTTP response body for API errors.
 	StatusCode int         `json:"-"`
 	Header     http.Header `json:"-"`
 }

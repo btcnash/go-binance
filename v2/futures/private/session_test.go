@@ -3,6 +3,7 @@ package private
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	gorillaws "github.com/gorilla/websocket"
 
+	"github.com/btcnash/go-binance/v2/common"
 	"github.com/btcnash/go-binance/v2/futures"
 	"github.com/btcnash/go-binance/v2/internal/networkenv"
 )
@@ -73,6 +75,114 @@ func testConnectionOptions() ConnectionOptions {
 		HeartbeatWriteTimeout: 10 * time.Millisecond,
 		ReconnectInitialDelay: 5 * time.Millisecond,
 		ReconnectMaxDelay:     5 * time.Millisecond,
+	}
+}
+
+func startMalformedPayloadSession(t *testing.T, payload []byte) (*Session, *atomic.Int32) {
+	t.Helper()
+	upgrader := gorillaws.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	connections := new(atomic.Int32)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		connections.Add(1)
+		defer conn.Close()
+		_ = conn.WriteMessage(gorillaws.TextMessage, payload)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	session, err := NewSession(SessionOptions{
+		Mode:       ModeIsolated,
+		Endpoint:   websocketRoot(server),
+		Sources:    []Source{{ID: "account-1", Provider: &fakeProvider{keys: []string{"key-1"}}}},
+		KeepAlive:  KeepAliveOptions{Interval: time.Hour},
+		Connection: testConnectionOptions(),
+	})
+	if err != nil {
+		t.Fatalf("NewSession() error = %v", err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+	if err := session.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	return session, connections
+}
+
+func waitGap(t *testing.T, session *Session) GapEvent {
+	t.Helper()
+	select {
+	case gap := <-session.Gaps():
+		return gap
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for gap")
+		return GapEvent{}
+	}
+}
+
+func startKeepAliveFailureSession(t *testing.T, keepAliveErr error) *Session {
+	t.Helper()
+	upgrader := gorillaws.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	provider := &fakeProvider{keys: []string{"key-1"}, keepAliveErr: keepAliveErr}
+	session, err := NewSession(SessionOptions{
+		Mode:      ModeIsolated,
+		Endpoint:  websocketRoot(server),
+		Sources:   []Source{{ID: "account-1", Provider: provider}},
+		KeepAlive: KeepAliveOptions{Interval: 10 * time.Millisecond, Timeout: 50 * time.Millisecond, RetryInitial: time.Millisecond, RetryMax: time.Millisecond, Multiplier: 1, MaxAttempts: 1},
+		Connection: ConnectionOptions{
+			HeartbeatPingInterval: time.Second,
+			HeartbeatPongTimeout:  time.Second,
+			HeartbeatWriteTimeout: 100 * time.Millisecond,
+			ReconnectInitialDelay: 5 * time.Millisecond,
+			ReconnectMaxDelay:     5 * time.Millisecond,
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewSession() error = %v", err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+	if err := session.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := session.WaitReady(context.Background()); err != nil {
+		t.Fatalf("WaitReady() error = %v", err)
+	}
+	return session
+}
+
+func waitKeepAliveFailure(t *testing.T, session *Session) ListenKeyEvent {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case event := <-session.ListenKeyEvents():
+			if event.Kind == ListenKeyKeepAliveFailed {
+				return event
+			}
+		case <-deadline:
+			t.Fatal("timeout waiting for keepalive failure event")
+			return ListenKeyEvent{}
+		}
 	}
 }
 
@@ -163,6 +273,76 @@ func TestPrivateSessionSingleSourceLifecycle(t *testing.T) {
 	provider.mu.Unlock()
 	if releaseCalls != 1 {
 		t.Fatalf("Release() calls = %d, want 1", releaseCalls)
+	}
+}
+
+func TestMalformedPrivateEventPreservesRawDecodeErrorAndReconnects(t *testing.T) {
+	payload := []byte(`{"e":`)
+	session, connections := startMalformedPayloadSession(t, payload)
+
+	gap := waitGap(t, session)
+	if gap.Reason != GapReasonMalformedEvent {
+		t.Fatalf("gap reason = %q, want %q", gap.Reason, GapReasonMalformedEvent)
+	}
+	if string(gap.Raw) != string(payload) {
+		t.Fatalf("gap raw = %q, want %q", gap.Raw, payload)
+	}
+	if gap.Err == nil {
+		t.Fatal("gap error = nil")
+	}
+	if !errors.Is(gap.Err, ErrMalformedEvent) {
+		t.Fatalf("errors.Is(gap.Err, ErrMalformedEvent) = false: %v", gap.Err)
+	}
+	if !strings.Contains(gap.Err.Error(), "unexpected end of JSON input") {
+		t.Fatalf("gap error does not contain decode cause: %v", gap.Err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && connections.Load() < 2 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := connections.Load(); got < 2 {
+		t.Fatalf("connections = %d, want reconnect after malformed event", got)
+	}
+}
+
+func TestMalformedPrivateEventMissingTypeHasExplicitCause(t *testing.T) {
+	payload := []byte(`{"foo":"bar"}`)
+	session, _ := startMalformedPayloadSession(t, payload)
+
+	gap := waitGap(t, session)
+	if gap.Reason != GapReasonMalformedEvent {
+		t.Fatalf("gap reason = %q, want %q", gap.Reason, GapReasonMalformedEvent)
+	}
+	if string(gap.Raw) != string(payload) {
+		t.Fatalf("gap raw = %q, want %q", gap.Raw, payload)
+	}
+	if !errors.Is(gap.Err, ErrMalformedEvent) {
+		t.Fatalf("errors.Is(gap.Err, ErrMalformedEvent) = false: %v", gap.Err)
+	}
+	if !strings.Contains(gap.Err.Error(), "missing event type") {
+		t.Fatalf("gap error = %v, want missing event type", gap.Err)
+	}
+	if strings.Contains(gap.Err.Error(), "<nil>") {
+		t.Fatalf("gap error contains misleading nil cause: %v", gap.Err)
+	}
+}
+
+func TestMalformedCombinedPrivateEventPreservesDecodedDataBytes(t *testing.T) {
+	data := []byte(`{"foo" : "bar", "n" : 1}`)
+	payload := append([]byte(`{"stream":"private","data":`), data...)
+	payload = append(payload, '}')
+	session, _ := startMalformedPayloadSession(t, payload)
+
+	gap := waitGap(t, session)
+	if gap.Reason != GapReasonMalformedEvent {
+		t.Fatalf("gap reason = %q, want %q", gap.Reason, GapReasonMalformedEvent)
+	}
+	if string(gap.Raw) != string(data) {
+		t.Fatalf("gap raw = %q, want exact data bytes %q", gap.Raw, data)
+	}
+	if string(gap.Raw) == string(payload) {
+		t.Fatalf("gap raw unexpectedly contains envelope: %q", gap.Raw)
 	}
 }
 
@@ -371,6 +551,83 @@ func TestKeepAliveTransientFailureRetriesWithoutReconnect(t *testing.T) {
 		t.Fatalf("unexpected gap: %+v", gap)
 	default:
 	}
+}
+
+func TestKeepAliveFailurePreservesAPIErrorChainAcrossEvents(t *testing.T) {
+	apiErr := &common.APIError{
+		Code:       -1125,
+		Message:    "This listenKey does not exist.",
+		Response:   []byte(`{"code":-1125,"msg":"This listenKey does not exist."}`),
+		StatusCode: http.StatusBadRequest,
+		Header:     http.Header{"X-Test": []string{"diagnostic"}},
+	}
+	session := startKeepAliveFailureSession(t, apiErr)
+
+	assertChain := func(name string, err error) {
+		t.Helper()
+		if err == nil {
+			t.Fatalf("%s error = nil", name)
+		}
+		if !errors.Is(err, ErrListenKeyKeepAlive) {
+			t.Fatalf("%s errors.Is(ErrListenKeyKeepAlive) = false: %v", name, err)
+		}
+		var got *common.APIError
+		if !errors.As(err, &got) {
+			t.Fatalf("%s errors.As(*common.APIError) = false: %v", name, err)
+		}
+		if got != apiErr {
+			t.Fatalf("%s APIError = %p, want original %p", name, got, apiErr)
+		}
+	}
+
+	listenKeyEvent := waitKeepAliveFailure(t, session)
+	assertChain("ListenKeyKeepAliveFailed", listenKeyEvent.Err)
+
+	var errorEvent ErrorEvent
+	select {
+	case errorEvent = <-session.Errors():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for keepalive ErrorEvent")
+	}
+	if errorEvent.Kind != ErrorKeepAlive {
+		t.Fatalf("ErrorEvent kind = %q, want %q", errorEvent.Kind, ErrorKeepAlive)
+	}
+	assertChain("ErrorEvent", errorEvent.Err)
+
+	gap := waitGap(t, session)
+	if gap.Reason != GapReasonKeepAliveFailed {
+		t.Fatalf("gap reason = %q, want %q", gap.Reason, GapReasonKeepAliveFailed)
+	}
+	assertChain("GapEvent", gap.Err)
+}
+
+func TestKeepAliveFailurePreservesContextAndNetworkCauses(t *testing.T) {
+	t.Run("context deadline", func(t *testing.T) {
+		session := startKeepAliveFailureSession(t, context.DeadlineExceeded)
+		event := waitKeepAliveFailure(t, session)
+		if !errors.Is(event.Err, ErrListenKeyKeepAlive) {
+			t.Fatalf("errors.Is(ErrListenKeyKeepAlive) = false: %v", event.Err)
+		}
+		if !errors.Is(event.Err, context.DeadlineExceeded) {
+			t.Fatalf("errors.Is(context.DeadlineExceeded) = false: %v", event.Err)
+		}
+	})
+
+	t.Run("network error", func(t *testing.T) {
+		networkErr := &net.OpError{Op: "write", Net: "tcp", Err: errors.New("connection reset")}
+		session := startKeepAliveFailureSession(t, networkErr)
+		event := waitKeepAliveFailure(t, session)
+		if !errors.Is(event.Err, ErrListenKeyKeepAlive) {
+			t.Fatalf("errors.Is(ErrListenKeyKeepAlive) = false: %v", event.Err)
+		}
+		var got *net.OpError
+		if !errors.As(event.Err, &got) {
+			t.Fatalf("errors.As(*net.OpError) = false: %v", event.Err)
+		}
+		if got != networkErr {
+			t.Fatalf("network error = %p, want original %p", got, networkErr)
+		}
+	})
 }
 
 func TestKeepAliveInvalidKeyReacquiresAndReconnects(t *testing.T) {

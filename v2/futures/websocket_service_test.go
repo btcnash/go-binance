@@ -1950,7 +1950,8 @@ func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateAmendment
 			"x":"AMENDMENT",
 			"X":"NEW",
 			"p":"75738.4",
-			"q":"0.0176"
+			"q":"0.0176",
+			"er":2
 		}
 	}`)
 
@@ -1962,7 +1963,8 @@ func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateAmendment
 	s.r().False(event.OrderTradeUpdate.IsMaker)
 	s.r().Equal("75738.4", event.OrderTradeUpdate.OriginalPrice)
 	s.r().Equal("0.0176", event.OrderTradeUpdate.OriginalQty)
-	s.r().Equal(json.RawMessage(`"8059271213674554961"`), event.OrderTradeUpdate.RawM)
+	s.r().Equal(WsOrderModifyID("8059271213674554961"), event.OrderTradeUpdate.ModifyID)
+	s.r().Equal(int64(2), event.OrderTradeUpdate.ExpireReason)
 }
 
 func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateUpperMDoesNotAffectMakerTrue() {
@@ -1975,7 +1977,7 @@ func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateUpperMDoe
 	err := json.Unmarshal(data, &event)
 	s.r().NoError(err)
 	s.r().True(event.OrderTradeUpdate.IsMaker)
-	s.r().Equal(json.RawMessage(`"8059271213674554961"`), event.OrderTradeUpdate.RawM)
+	s.r().Equal(WsOrderModifyID("8059271213674554961"), event.OrderTradeUpdate.ModifyID)
 }
 
 func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateWithoutUpperM() {
@@ -1988,7 +1990,8 @@ func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateWithoutUp
 	err := json.Unmarshal(data, &event)
 	s.r().NoError(err)
 	s.r().False(event.OrderTradeUpdate.IsMaker)
-	s.r().Nil(event.OrderTradeUpdate.RawM)
+	s.r().Empty(event.OrderTradeUpdate.ModifyID)
+	s.r().Zero(event.OrderTradeUpdate.ExpireReason)
 }
 
 func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateUpperMBoolean() {
@@ -2001,7 +2004,46 @@ func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateUpperMBoo
 	err := json.Unmarshal(data, &event)
 	s.r().NoError(err)
 	s.r().False(event.OrderTradeUpdate.IsMaker)
-	s.r().Equal(json.RawMessage(`false`), event.OrderTradeUpdate.RawM)
+	s.r().Empty(event.OrderTradeUpdate.ModifyID)
+}
+
+func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateUpperMNull() {
+	data := []byte(`{
+		"e":"ORDER_TRADE_UPDATE",
+		"o":{"M":null,"m":true}
+	}`)
+
+	var event WsUserDataEvent
+	err := json.Unmarshal(data, &event)
+	s.r().NoError(err)
+	s.r().True(event.OrderTradeUpdate.IsMaker)
+	s.r().Empty(event.OrderTradeUpdate.ModifyID)
+}
+
+func (s *websocketServiceTestSuite) TestWsUserDataServeAccountUpdateFundingSymbol() {
+	data := []byte(`{
+		"e":"ACCOUNT_UPDATE",
+		"a":{"m":"FUNDING_FEE","S":"BTCUSDT","B":[],"P":[]}
+	}`)
+
+	var event WsUserDataEvent
+	err := json.Unmarshal(data, &event)
+	s.r().NoError(err)
+	s.r().Equal(UserDataEventReasonType("FUNDING_FEE"), event.AccountUpdate.Reason)
+	s.r().Equal("BTCUSDT", event.AccountUpdate.Symbol)
+}
+
+func (s *websocketServiceTestSuite) TestWsUserDataServeAccountUpdateWithoutSymbol() {
+	data := []byte(`{
+		"e":"ACCOUNT_UPDATE",
+		"a":{"m":"ORDER","B":[],"P":[]}
+	}`)
+
+	var event WsUserDataEvent
+	err := json.Unmarshal(data, &event)
+	s.r().NoError(err)
+	s.r().Equal(UserDataEventReasonType("ORDER"), event.AccountUpdate.Reason)
+	s.r().Empty(event.AccountUpdate.Symbol)
 }
 
 func (s *websocketServiceTestSuite) TestWsUserDataServeAccountConfigUpdate() {
@@ -2185,6 +2227,7 @@ func (s *websocketServiceTestSuite) assertPosition(e, a WsPosition) {
 func (s *websocketServiceTestSuite) assertAccountUpdate(e, a WsAccountUpdate) {
 	r := s.r()
 	r.Equal(e.Reason, a.Reason, "Reason")
+	r.Equal(e.Symbol, a.Symbol, "Symbol")
 	for i, e := range e.Balances {
 		a := a.Balances[i]
 		r.Equal(e.Asset, a.Asset, "Asset")
@@ -2221,6 +2264,7 @@ func (s *websocketServiceTestSuite) assertOrderTradeUpdate(e, a WsOrderTradeUpda
 	r.Equal(e.BidsNotional, a.BidsNotional, "BidsNotional")
 	r.Equal(e.AsksNotional, a.AsksNotional, "AsksNotional")
 	r.Equal(e.IsMaker, a.IsMaker, "IsMaker")
+	r.Equal(e.ModifyID, a.ModifyID, "ModifyID")
 	r.Equal(e.IsReduceOnly, a.IsReduceOnly, "IsReduceOnly")
 	r.Equal(e.WorkingType, a.WorkingType, "WorkingType")
 	r.Equal(e.OriginalType, a.OriginalType, "OriginalType")
@@ -2229,6 +2273,7 @@ func (s *websocketServiceTestSuite) assertOrderTradeUpdate(e, a WsOrderTradeUpda
 	r.Equal(e.ActivationPrice, a.ActivationPrice, "ActivationPrice")
 	r.Equal(e.CallbackRate, a.CallbackRate, "CallbackRate")
 	r.Equal(e.RealizedPnL, a.RealizedPnL, "RealizedPnL")
+	r.Equal(e.ExpireReason, a.ExpireReason, "ExpireReason")
 }
 
 func (s *websocketServiceTestSuite) assertAccountConfigUpdate(e, a WsAccountConfigUpdate) {

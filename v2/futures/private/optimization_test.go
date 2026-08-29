@@ -122,18 +122,18 @@ func TestWsUserDataEventOptimizedUnmarshalSupportedEvents(t *testing.T) {
 		},
 		{
 			name:    "account update",
-			payload: `{"e":"ACCOUNT_UPDATE","E":12,"T":13,"a":{"m":"ORDER","B":[],"P":[]}}`,
+			payload: `{"e":"ACCOUNT_UPDATE","E":12,"T":13,"a":{"m":"FUNDING_FEE","S":"BTCUSDT","B":[],"P":[]}}`,
 			check: func(t *testing.T, event *futures.WsUserDataEvent) {
-				if event.TransactionTime != 13 || event.AccountUpdate.Reason != "ORDER" {
+				if event.TransactionTime != 13 || event.AccountUpdate.Reason != "FUNDING_FEE" || event.AccountUpdate.Symbol != "BTCUSDT" {
 					t.Fatalf("account update = %#v", event.WsUserDataAccountUpdate)
 				}
 			},
 		},
 		{
 			name:    "order trade update",
-			payload: `{"e":"ORDER_TRADE_UPDATE","E":14,"T":15,"o":{"s":"BTCUSDT","c":"client","S":"BUY","o":"LIMIT","X":"NEW","i":99}}`,
+			payload: `{"e":"ORDER_TRADE_UPDATE","E":14,"T":15,"o":{"s":"BTCUSDT","c":"client","S":"BUY","o":"LIMIT","X":"NEW","i":99,"M":"123","m":false,"er":2}}`,
 			check: func(t *testing.T, event *futures.WsUserDataEvent) {
-				if event.OrderTradeUpdate.Symbol != "BTCUSDT" || event.OrderTradeUpdate.ID != 99 {
+				if event.OrderTradeUpdate.Symbol != "BTCUSDT" || event.OrderTradeUpdate.ID != 99 || event.OrderTradeUpdate.ModifyID != "123" || event.OrderTradeUpdate.ExpireReason != 2 {
 					t.Fatalf("order update = %#v", event.WsUserDataOrderTradeUpdate)
 				}
 			},

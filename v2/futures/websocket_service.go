@@ -1444,6 +1444,7 @@ func equalBytesString(value []byte, expected string) bool {
 // WsAccountUpdate define account update
 type WsAccountUpdate struct {
 	Reason    UserDataEventReasonType `json:"m"`
+	Symbol    string                  `json:"S"`
 	Balances  []WsBalance             `json:"B"`
 	Positions []WsPosition            `json:"P"`
 }
@@ -1470,6 +1471,21 @@ type WsPosition struct {
 	MaintenanceMarginRequired string           `json:"mm"`
 }
 
+// WsOrderModifyID is the modifyId carried by ORDER_TRADE_UPDATE.M.
+// Binance currently sends it as a string. Historical or unexpected non-string
+// M values are ignored so they cannot invalidate the whole order event.
+type WsOrderModifyID string
+
+func (m *WsOrderModifyID) UnmarshalJSON(data []byte) error {
+	*m = ""
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return nil
+	}
+	*m = WsOrderModifyID(value)
+	return nil
+}
+
 // WsOrderTradeUpdate define order trade update
 type WsOrderTradeUpdate struct {
 	Symbol               string             `json:"s"`   // Symbol
@@ -1494,7 +1510,7 @@ type WsOrderTradeUpdate struct {
 	BidsNotional         string             `json:"b"`   // Bids Notional
 	AsksNotional         string             `json:"a"`   // Asks Notional
 	IsMaker              bool               `json:"m"`   // Is this trade the maker side?
-	RawM                 json.RawMessage    `json:"M"`   // Reserved field; preserve its wire value
+	ModifyID             WsOrderModifyID    `json:"M"`   // User-defined modification identifier
 	IsReduceOnly         bool               `json:"R"`   // Is this reduce only
 	WorkingType          WorkingType        `json:"wt"`  // Stop Price Working Type
 	OriginalType         OrderType          `json:"ot"`  // Original Order Type
@@ -1507,6 +1523,7 @@ type WsOrderTradeUpdate struct {
 	STP                  string             `json:"V"`   // STP mode
 	PriceMode            string             `json:"pm"`  // Price match mode
 	GTD                  int64              `json:"gtd"` // TIF GTD order auto cancel time
+	ExpireReason         int64              `json:"er"`  // Order expiration reason
 }
 
 // WsAccountConfigUpdate define account config update

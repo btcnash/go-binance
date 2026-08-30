@@ -1964,7 +1964,24 @@ func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateAmendment
 	s.r().Equal("75738.4", event.OrderTradeUpdate.OriginalPrice)
 	s.r().Equal("0.0176", event.OrderTradeUpdate.OriginalQty)
 	s.r().Equal(WsOrderModifyID("8059271213674554961"), event.OrderTradeUpdate.ModifyID)
-	s.r().Equal(int64(2), event.OrderTradeUpdate.ExpireReason)
+	s.r().Equal(WsOrderExpireReason(2), event.OrderTradeUpdate.ExpireReason)
+}
+
+func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateStringExpireReason() {
+	data := []byte(`{
+		"e":"ORDER_TRADE_UPDATE",
+		"o":{
+			"x":"AMENDMENT",
+			"X":"NEW",
+			"er":"0"
+		}
+	}`)
+
+	var event WsUserDataEvent
+	err := json.Unmarshal(data, &event)
+	s.r().NoError(err)
+	s.r().Equal(OrderExecutionType("AMENDMENT"), event.OrderTradeUpdate.ExecutionType)
+	s.r().Equal(WsOrderExpireReason(0), event.OrderTradeUpdate.ExpireReason)
 }
 
 func (s *websocketServiceTestSuite) TestWsUserDataServeOrderTradeUpdateUpperMDoesNotAffectMakerTrue() {

@@ -108,6 +108,13 @@ func NewStreamSession(opts StreamSessionOptions) (*StreamSession, error) {
 	for _, sub := range normalized.InitialSubscriptions {
 		desired[sub.String()] = sub
 	}
+	events := make(chan StreamEvent)
+	typedEvents := make(chan TypedStreamEvent)
+	if normalized.TypedDelivery == TypedDeliveryDisabled {
+		events = make(chan StreamEvent, normalized.EventBuffer)
+	} else {
+		typedEvents = make(chan TypedStreamEvent, normalized.EventBuffer)
+	}
 	return &StreamSession{
 		opts:         normalized,
 		conn:         conn,
@@ -119,8 +126,8 @@ func NewStreamSession(opts StreamSessionOptions) (*StreamSession, error) {
 		waiters:      make(map[uint64]*subscriptionWaiter),
 		changed:      make(chan struct{}),
 		reconcileC:   make(chan struct{}, 1),
-		events:       make(chan StreamEvent, normalized.EventBuffer),
-		typedEvents:  make(chan TypedStreamEvent, normalized.EventBuffer),
+		events:       events,
+		typedEvents:  typedEvents,
 		states:       make(chan StreamStateEvent, normalized.StateBuffer),
 		errors:       make(chan StreamErrorEvent, normalized.ErrorBuffer),
 		gaps:         make(chan GapEvent, normalized.GapBuffer),

@@ -804,8 +804,9 @@ func (s *StreamSession) handleTypedFrame(frame managedws.Frame) {
 	raw := json.RawMessage(frame.Payload)
 	switch s.opts.TypedDelivery {
 	case TypedDeliveryBookTicker:
-		var envelope typedBookTickerEnvelope
-		if err := jsonv2.Unmarshal(frame.Payload, &envelope); err != nil {
+		envelope := typedBookTickerEnvelopePool.Get().(*typedBookTickerEnvelope)
+		defer releaseTypedBookTickerEnvelope(envelope)
+		if err := jsonv2.Unmarshal(frame.Payload, envelope); err != nil {
 			s.handleTypedDecodeFailure(frame, err)
 			return
 		}
@@ -829,8 +830,9 @@ func (s *StreamSession) handleTypedFrame(frame managedws.Frame) {
 			s.handleEventOverflow(frame.Generation)
 		}
 	case TypedDeliveryAggTrade:
-		var envelope typedAggTradeEnvelope
-		if err := jsonv2.Unmarshal(frame.Payload, &envelope); err != nil {
+		envelope := typedAggTradeEnvelopePool.Get().(*typedAggTradeEnvelope)
+		defer releaseTypedAggTradeEnvelope(envelope)
+		if err := jsonv2.Unmarshal(frame.Payload, envelope); err != nil {
 			s.handleTypedDecodeFailure(frame, err)
 			return
 		}
@@ -854,8 +856,9 @@ func (s *StreamSession) handleTypedFrame(frame managedws.Frame) {
 			s.handleEventOverflow(frame.Generation)
 		}
 	case TypedDeliveryKline:
-		var envelope typedKlineEnvelope
-		if err := jsonv2.Unmarshal(frame.Payload, &envelope); err != nil {
+		envelope := typedKlineEnvelopePool.Get().(*typedKlineEnvelope)
+		defer releaseTypedKlineEnvelope(envelope)
+		if err := jsonv2.Unmarshal(frame.Payload, envelope); err != nil {
 			s.handleTypedDecodeFailure(frame, err)
 			return
 		}

@@ -5,6 +5,7 @@ import (
 	jsonv2 "encoding/json/v2"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -236,6 +237,27 @@ type typedAggTradeEnvelope struct {
 type typedKlineEnvelope struct {
 	typedEnvelopeControl
 	Data klineEventWire `json:"data"`
+}
+
+var (
+	typedBookTickerEnvelopePool = sync.Pool{New: func() any { return new(typedBookTickerEnvelope) }}
+	typedAggTradeEnvelopePool   = sync.Pool{New: func() any { return new(typedAggTradeEnvelope) }}
+	typedKlineEnvelopePool      = sync.Pool{New: func() any { return new(typedKlineEnvelope) }}
+)
+
+func releaseTypedBookTickerEnvelope(envelope *typedBookTickerEnvelope) {
+	*envelope = typedBookTickerEnvelope{}
+	typedBookTickerEnvelopePool.Put(envelope)
+}
+
+func releaseTypedAggTradeEnvelope(envelope *typedAggTradeEnvelope) {
+	*envelope = typedAggTradeEnvelope{}
+	typedAggTradeEnvelopePool.Put(envelope)
+}
+
+func releaseTypedKlineEnvelope(envelope *typedKlineEnvelope) {
+	*envelope = typedKlineEnvelope{}
+	typedKlineEnvelopePool.Put(envelope)
 }
 
 func (mode TypedDeliveryMode) validateForClass(class StreamClass) error {

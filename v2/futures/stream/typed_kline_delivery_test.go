@@ -52,6 +52,7 @@ func TestHandleTypedKlinePresence(t *testing.T) {
 		isFinalPresent bool
 	}{
 		{name: "absent"},
+		{name: "null", x: `,"x":null`},
 		{name: "explicit false", x: `,"x":false`, isFinalPresent: true},
 		{name: "explicit true", x: `,"x":true`, isFinal: true, isFinalPresent: true},
 	}
@@ -101,6 +102,7 @@ func TestWsKlinePresenceUnmarshal(t *testing.T) {
 		isFinalPresent bool
 	}{
 		{name: "absent"},
+		{name: "null", x: `,"x":null`},
 		{name: "explicit false", x: `,"x":false`, isFinalPresent: true},
 		{name: "explicit true", x: `,"x":true`, isFinal: true, isFinalPresent: true},
 	}

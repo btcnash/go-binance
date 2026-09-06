@@ -99,6 +99,7 @@ func TestHandleTypedAggTradePresence(t *testing.T) {
 		symbolTypePresent     bool
 	}{
 		{name: "absent"},
+		{name: "null", nq: `,"nq":null`, st: `,"st":null`},
 		{name: "explicit zero and empty", nq: `,"nq":""`, st: `,"st":0`, normalQuantityPresent: true, symbolTypePresent: true},
 		{name: "values", nq: `,"nq":"0.014"`, st: `,"st":1`, normalQuantity: "0.014", normalQuantityPresent: true, symbolType: 1, symbolTypePresent: true},
 	}

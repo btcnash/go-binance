@@ -3,6 +3,7 @@ package stream
 import (
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"sort"
@@ -804,7 +805,7 @@ func (s *StreamSession) handleTypedFrame(frame managedws.Frame) {
 	switch s.opts.TypedDelivery {
 	case TypedDeliveryBookTicker:
 		var envelope typedBookTickerEnvelope
-		if err := json.Unmarshal(frame.Payload, &envelope); err != nil {
+		if err := jsonv2.Unmarshal(frame.Payload, &envelope); err != nil {
 			s.handleTypedDecodeFailure(frame, err)
 			return
 		}
@@ -829,7 +830,7 @@ func (s *StreamSession) handleTypedFrame(frame managedws.Frame) {
 		}
 	case TypedDeliveryAggTrade:
 		var envelope typedAggTradeEnvelope
-		if err := json.Unmarshal(frame.Payload, &envelope); err != nil {
+		if err := jsonv2.Unmarshal(frame.Payload, &envelope); err != nil {
 			s.handleTypedDecodeFailure(frame, err)
 			return
 		}
@@ -854,7 +855,7 @@ func (s *StreamSession) handleTypedFrame(frame managedws.Frame) {
 		}
 	case TypedDeliveryKline:
 		var envelope typedKlineEnvelope
-		if err := json.Unmarshal(frame.Payload, &envelope); err != nil {
+		if err := jsonv2.Unmarshal(frame.Payload, &envelope); err != nil {
 			s.handleTypedDecodeFailure(frame, err)
 			return
 		}
@@ -886,7 +887,7 @@ func (s *StreamSession) handleTypedDecodeFailure(frame managedws.Frame, decodeEr
 	// Cold path: recover only the generic envelope metadata needed to preserve
 	// protocol responses and to hand an application decode failure to callers.
 	var envelope wireEnvelope
-	if err := json.Unmarshal(frame.Payload, &envelope); err != nil {
+	if err := jsonv2.Unmarshal(frame.Payload, &envelope); err != nil {
 		s.emitError(newStreamError(StreamErrorProtocol, "", 0, frame.Generation, fmt.Errorf("decode websocket payload: %w", err)))
 		return
 	}

@@ -2,6 +2,7 @@ package stream
 
 import (
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
@@ -94,7 +95,7 @@ func aggTradeEventFromWire(wire aggTradeWire) WsAggTradeEvent {
 // conversion path as managed typed delivery.
 func (e *WsAggTradeEvent) UnmarshalJSON(payload []byte) error {
 	var wire aggTradeWire
-	if err := json.Unmarshal(payload, &wire); err != nil {
+	if err := jsonv2.Unmarshal(payload, &wire); err != nil {
 		return err
 	}
 	*e = aggTradeEventFromWire(wire)
@@ -178,7 +179,7 @@ func klineEventFromWire(wire klineEventWire) WsKlineEvent {
 // UnmarshalJSON preserves x-field presence for direct WsKline decoding.
 func (k *WsKline) UnmarshalJSON(payload []byte) error {
 	var wire klineWire
-	if err := json.Unmarshal(payload, &wire); err != nil {
+	if err := jsonv2.Unmarshal(payload, &wire); err != nil {
 		return err
 	}
 	*k = klineFromWire(wire)
@@ -189,7 +190,7 @@ func (k *WsKline) UnmarshalJSON(payload []byte) error {
 // managed typed delivery, avoiding semantic drift between SDK entry points.
 func (e *WsKlineEvent) UnmarshalJSON(payload []byte) error {
 	var wire klineEventWire
-	if err := json.Unmarshal(payload, &wire); err != nil {
+	if err := jsonv2.Unmarshal(payload, &wire); err != nil {
 		return err
 	}
 	*e = klineEventFromWire(wire)

@@ -7,6 +7,8 @@ import (
 )
 
 var (
+	errListenKeyRenewed            = errors.New("futures private stream: active listen key renewed")
+	errStaleListenKeyResponse      = errors.New("futures private stream: stale listen key response")
 	ErrInvalidOptions              = errors.New("futures private stream: invalid options")
 	ErrInvalidSource               = errors.New("futures private stream: invalid source")
 	ErrSessionNotStarted           = errors.New("futures private stream: session not started")

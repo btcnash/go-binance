@@ -99,7 +99,48 @@ func TestRESTListenKeyProviderRejectsNilClient(t *testing.T) {
 	if err := provider.KeepAlive(context.Background(), "key"); !errors.Is(err, ErrListenKeyKeepAlive) {
 		t.Fatalf("KeepAlive() error = %v", err)
 	}
+	if _, err := provider.KeepAliveWithResponse(context.Background(), "key"); !errors.Is(err, ErrListenKeyKeepAlive) {
+		t.Fatalf("KeepAliveWithResponse() error = %v", err)
+	}
 	if err := provider.Release(context.Background(), "key"); !errors.Is(err, ErrListenKeyRelease) {
 		t.Fatalf("Release() error = %v", err)
+	}
+}
+
+func TestRESTListenKeyProviderReturnsRenewalResponseAndAPICause(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusBadRequest} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				if r.Method != http.MethodPut || r.URL.Path != "/fapi/v1/listenKey" {
+					t.Errorf("unexpected renewal: %v", r.URL)
+				}
+				w.WriteHeader(status)
+				if status == http.StatusOK {
+					_, _ = w.Write([]byte(`{"listenKey":"key-new"}`))
+				} else {
+					_, _ = w.Write([]byte(`{"code":-1125,"msg":"This listenKey does not exist."}`))
+				}
+			}))
+			defer server.Close()
+			client := futures.NewClient("api-key", "secret")
+			client.BaseURL, client.HTTPClient = server.URL, server.Client()
+			provider := RESTListenKeyProvider{Client: client}
+			key, err := provider.KeepAliveWithResponse(context.Background(), "key-old")
+			if status == http.StatusOK {
+				if err != nil || key != "key-new" {
+					t.Fatalf("key=%q err=%v", key, err)
+				}
+			} else {
+				var apiErr *common.APIError
+				if !errors.As(err, &apiErr) || apiErr.Code != -1125 || !provider.IsInvalidListenKey(err) {
+					t.Fatalf("lost API error: %v", err)
+				}
+			}
+			if calls != 1 {
+				t.Fatalf("PUT count=%d", calls)
+			}
+		})
 	}
 }

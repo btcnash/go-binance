@@ -32,6 +32,12 @@ type ListenKeyProvider interface {
 	Release(ctx context.Context, listenKey string) error
 }
 
+// ListenKeyRenewalProvider optionally returns the active key from the same
+// renewal request. Legacy error-only providers remain supported.
+type ListenKeyRenewalProvider interface {
+	KeepAliveWithResponse(ctx context.Context, listenKey string) (string, error)
+}
+
 // InvalidListenKeyClassifier is optional. Providers that can distinguish an
 // expired/invalid listen key from a transient network failure should implement
 // it so the session can reacquire immediately instead of exhausting retries.
@@ -274,6 +280,8 @@ const (
 	ListenKeyAcquireFailed      ListenKeyEventKind = "acquire_failed"
 	ListenKeyKeepAliveSucceeded ListenKeyEventKind = "keepalive_succeeded"
 	ListenKeyKeepAliveFailed    ListenKeyEventKind = "keepalive_failed"
+	ListenKeyRenewed            ListenKeyEventKind = "renewed"
+	ListenKeyResponseIgnored    ListenKeyEventKind = "response_ignored"
 	ListenKeyInvalidated        ListenKeyEventKind = "invalidated"
 	ListenKeyReleased           ListenKeyEventKind = "released"
 	ListenKeyReleaseFailed      ListenKeyEventKind = "release_failed"

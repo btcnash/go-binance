@@ -456,6 +456,9 @@ func (s *Session) transportErrorLoop(ctx context.Context) {
 			if !ok {
 				return
 			}
+			if errors.Is(event.Err, errListenKeyRenewed) {
+				continue
+			}
 			var protocolErr *PrivateError
 			if errors.As(event.Err, &protocolErr) {
 				s.emitError(event.Err)
@@ -535,16 +538,24 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 		if code, message, rejected := exactPrivateRejection(payload); rejected && isInvalidListenKeyCode(code) {
 			affected := bindingIndex.allSourceIDs()
 			wrapped := privateError(ErrorExpired, "", frame.Generation, "private_rejected", fmt.Errorf("%w: code=%d message=%q", ErrListenKeyExpired, code, message))
+			affected = s.invalidateSources(frame.Generation, affected, wrapped)
+			if len(affected) == 0 {
+				return
+			}
 			s.emitError(wrapped)
 			s.emitGap(GapEvent{Reason: GapReasonListenKeyExpired, FromGeneration: frame.Generation, SourceIDs: affected, At: time.Now(), Err: wrapped})
-			s.invalidateSources(affected, wrapped)
 			s.transition(StateRefreshing, ReasonListenKeyRefresh, frame.Generation, wrapped)
 			_ = s.conn.Interrupt(wrapped)
 			return
 		}
 		malformedCause := decodeErr
-		if json.Valid(payload) {
-			malformedCause = errors.New("missing event type")
+		var typeErr *json.UnmarshalTypeError
+		if json.Valid(payload) && !errors.As(decodeErr, &typeErr) {
+			if decodeErr == nil {
+				malformedCause = errors.New("missing event type")
+			} else {
+				malformedCause = fmt.Errorf("missing event type: %w", decodeErr)
+			}
 		} else if malformedCause == nil {
 			malformedCause = errors.New("invalid user data event JSON")
 		}
@@ -556,6 +567,15 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 	}
 
 	sourceID, candidates, resolution := bindingIndex.resolve(eventType, envelope.ListenKey, envelope.Stream)
+	var expiry *PrivateError
+	var expiredSources []string
+	if eventType == futures.UserDataEventTypeListenKeyExpired {
+		expiry = privateError(ErrorExpired, sourceID, frame.Generation, "listen_key_expired", ErrListenKeyExpired)
+		expiredSources = s.invalidateSources(frame.Generation, candidateOrAll(sourceID, candidates, bindingIndex), expiry)
+		if len(expiredSources) == 0 {
+			return
+		}
+	}
 	event := Event{
 		Generation:         frame.Generation,
 		SourceID:           sourceID,
@@ -586,13 +606,10 @@ func (s *Session) handleFrame(frame managedws.Frame) {
 		return
 	}
 
-	if eventType == futures.UserDataEventTypeListenKeyExpired {
-		affected := candidateOrAll(sourceID, candidates, bindingIndex)
-		wrapped := privateError(ErrorExpired, sourceID, frame.Generation, "listen_key_expired", ErrListenKeyExpired)
-		s.emitGap(GapEvent{Reason: GapReasonListenKeyExpired, FromGeneration: frame.Generation, SourceIDs: affected, At: time.Now(), Err: wrapped})
-		s.invalidateSources(affected, wrapped)
-		s.transition(StateRefreshing, ReasonListenKeyRefresh, frame.Generation, wrapped)
-		_ = s.conn.Interrupt(wrapped)
+	if expiry != nil {
+		s.emitGap(GapEvent{Reason: GapReasonListenKeyExpired, FromGeneration: frame.Generation, SourceIDs: expiredSources, At: time.Now(), Err: expiry})
+		s.transition(StateRefreshing, ReasonListenKeyRefresh, frame.Generation, expiry)
+		_ = s.conn.Interrupt(expiry)
 	}
 }
 
@@ -655,20 +672,52 @@ func (s *Session) keepAliveWithRetry(ctx context.Context, source *sourceRuntime,
 	delay := s.opts.KeepAlive.RetryInitial
 	var lastErr error
 	for attempt := 1; attempt <= s.opts.KeepAlive.MaxAttempts; attempt++ {
+		if ctx.Err() != nil {
+			return false
+		}
 		callCtx, cancel := context.WithTimeout(ctx, s.opts.KeepAlive.Timeout)
-		err := source.keepAlive(callCtx, key)
+		current, changed, err := source.keepAlive(callCtx, key, version)
 		cancel()
+		if ctx.Err() != nil {
+			return false
+		}
 		if err == nil {
-			s.emitListenKey(ListenKeyEvent{Kind: ListenKeyKeepAliveSucceeded, SourceID: source.spec.ID, Version: version, Attempt: attempt, At: time.Now()})
+			s.emitListenKey(ListenKeyEvent{Kind: ListenKeyKeepAliveSucceeded, SourceID: source.spec.ID, Version: current, Attempt: attempt, At: time.Now()})
+			if changed && !s.snapshotCurrent(s.dialer.Snapshot()) {
+				s.transition(StateRefreshing, ReasonListenKeyRefresh, s.Generation(), nil)
+				_ = s.conn.Interrupt(errListenKeyRenewed)
+			}
 			return true
 		}
-		lastErr = privateError(ErrorKeepAlive, source.spec.ID, s.Generation(), "keepalive", fmt.Errorf("%w: %w", ErrListenKeyKeepAlive, err))
+		if !source.matches(key, version) {
+			source.ignoreResponse(version, attempt)
+			return true
+		}
+		invalid := false
+		if classifier, ok := source.spec.Provider.(InvalidListenKeyClassifier); ok {
+			invalid = classifier.IsInvalidListenKey(err)
+		}
+		if ctx.Err() != nil {
+			return false
+		}
+		if !source.matches(key, version) {
+			source.ignoreResponse(version, attempt)
+			return true
+		}
+		operation := "keepalive"
+		if !invalid && attempt == s.opts.KeepAlive.MaxAttempts {
+			operation = "keepalive_exhausted"
+		}
+		lastErr = privateError(ErrorKeepAlive, source.spec.ID, s.Generation(), operation, fmt.Errorf("%w: %w", ErrListenKeyKeepAlive, err))
+		if invalid || attempt == s.opts.KeepAlive.MaxAttempts {
+			if _, _, changed := source.invalidateIfCurrent(key, version, lastErr); !changed {
+				source.ignoreResponse(version, attempt)
+				return true
+			}
+		}
 		s.emitListenKey(ListenKeyEvent{Kind: ListenKeyKeepAliveFailed, SourceID: source.spec.ID, Version: version, Attempt: attempt, At: time.Now(), Err: lastErr})
 		s.emitError(lastErr)
-		if classifier, ok := source.spec.Provider.(InvalidListenKeyClassifier); ok && classifier.IsInvalidListenKey(err) {
-			break
-		}
-		if attempt == s.opts.KeepAlive.MaxAttempts {
+		if invalid || attempt == s.opts.KeepAlive.MaxAttempts {
 			break
 		}
 		if !waitContext(ctx, delay) {
@@ -676,14 +725,9 @@ func (s *Session) keepAliveWithRetry(ctx context.Context, source *sourceRuntime,
 		}
 		delay = nextDelay(delay, s.opts.KeepAlive.RetryMax, s.opts.KeepAlive.Multiplier)
 	}
-	wrapped := lastErr
-	if wrapped == nil {
-		wrapped = privateError(ErrorKeepAlive, source.spec.ID, s.Generation(), "keepalive", ErrListenKeyKeepAlive)
-	}
-	source.invalidate(wrapped)
-	s.emitGap(GapEvent{Reason: GapReasonKeepAliveFailed, FromGeneration: s.Generation(), SourceIDs: []string{source.spec.ID}, At: time.Now(), Err: wrapped})
-	s.transition(StateRefreshing, ReasonListenKeyRefresh, s.Generation(), wrapped)
-	_ = s.conn.Interrupt(wrapped)
+	s.emitGap(GapEvent{Reason: GapReasonKeepAliveFailed, FromGeneration: s.Generation(), SourceIDs: []string{source.spec.ID}, At: time.Now(), Err: lastErr})
+	s.transition(StateRefreshing, ReasonListenKeyRefresh, s.Generation(), lastErr)
+	_ = s.conn.Interrupt(lastErr)
 	return false
 }
 
@@ -722,12 +766,34 @@ func (s *Session) snapshotCurrent(snapshot dialSnapshot) bool {
 	return true
 }
 
-func (s *Session) invalidateSources(ids []string, err error) {
-	for _, id := range ids {
-		if source := s.sourceByID[id]; source != nil {
-			source.invalidate(err)
+// Only an event's original connection binding may invalidate its source.
+// Copy just the selected immutable bindings under mu; never wait for opMu here.
+func (s *Session) invalidateSources(generation uint64, ids []string, err error) []string {
+	s.mu.Lock()
+	if generation != s.generation {
+		s.mu.Unlock()
+		return nil
+	}
+	var bindings []sourceBinding
+	for _, binding := range s.currentBindings {
+		for _, id := range ids {
+			if binding.SourceID == id {
+				bindings = append(bindings, binding)
+				break
+			}
 		}
 	}
+	s.mu.Unlock()
+	var affected []string
+	for _, binding := range bindings {
+		source := s.sourceByID[binding.SourceID]
+		if _, _, changed := source.invalidateIfCurrent(binding.ListenKey, binding.Version, err); changed {
+			affected = append(affected, binding.SourceID)
+		} else {
+			source.ignoreResponse(binding.Version, 0)
+		}
+	}
+	return affected
 }
 
 func (s *Session) currentSourceIDs() []string {

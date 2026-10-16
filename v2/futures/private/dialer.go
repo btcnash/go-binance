@@ -76,10 +76,15 @@ func (s *sourceRuntime) ensure(ctx context.Context) (string, uint64, error) {
 }
 
 func (s *sourceRuntime) invalidate(err error) (string, uint64, bool) {
+	return s.invalidateIfCurrent("", 0, err)
+}
+
+// Version zero is reserved for unconditional finalization after workers stop.
+func (s *sourceRuntime) invalidateIfCurrent(key string, expected uint64, err error) (string, uint64, bool) {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
 	s.mu.Lock()
-	if s.key == "" {
+	if s.key == "" || (expected != 0 && (s.key != key || s.version != expected)) {
 		version := s.version
 		s.mu.Unlock()
 		return "", version, false
@@ -112,14 +117,57 @@ func (s *sourceRuntime) waitForKey(ctx context.Context) (string, uint64, error) 
 	}
 }
 
-func (s *sourceRuntime) keepAlive(ctx context.Context, key string) error {
+func (s *sourceRuntime) matches(key string, version uint64) bool {
+	current, currentVersion := s.current()
+	return current == key && currentVersion == version
+}
+
+func (s *sourceRuntime) ignoreResponse(expected uint64, attempt int) {
+	_, current := s.current()
+	s.emitEvent(ListenKeyEvent{Kind: ListenKeyResponseIgnored, SourceID: s.spec.ID, Version: expected, Attempt: attempt, At: time.Now(), Err: fmt.Errorf("%w: requested_version=%d current_version=%d", errStaleListenKeyResponse, expected, current)})
+}
+
+// opMu serializes only this source's credential side effects. The state mutex
+// never covers HTTP or JSON; adoption checks both key and version.
+func (s *sourceRuntime) keepAlive(ctx context.Context, key string, version uint64) (uint64, bool, error) {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
-	current, _ := s.current()
-	if current == "" || current != key {
-		return ErrListenKeyExpired
+	if err := ctx.Err(); err != nil {
+		return version, false, err
 	}
-	return s.spec.Provider.KeepAlive(ctx, key)
+	if !s.matches(key, version) {
+		return version, false, errStaleListenKeyResponse
+	}
+	next := key
+	var err error
+	if provider, ok := s.spec.Provider.(ListenKeyRenewalProvider); ok {
+		next, err = provider.KeepAliveWithResponse(ctx, key)
+	} else {
+		err = s.spec.Provider.KeepAlive(ctx, key)
+	}
+	if err != nil {
+		return version, false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return version, false, err
+	}
+	next = strings.TrimSpace(next)
+	if next == "" {
+		return version, false, fmt.Errorf("%w: provider returned empty active key", ErrListenKeyKeepAlive)
+	}
+	if next == key {
+		return version, false, nil
+	}
+	s.mu.Lock()
+	s.key = next
+	s.version++
+	current := s.version
+	oldChanged := s.changed
+	s.changed = make(chan struct{})
+	close(oldChanged)
+	s.mu.Unlock()
+	s.emitEvent(ListenKeyEvent{Kind: ListenKeyRenewed, SourceID: s.spec.ID, Version: current, At: time.Now()})
+	return current, true, nil
 }
 
 func (s *sourceRuntime) release(ctx context.Context) error {
@@ -310,8 +358,10 @@ func (d *privateDialer) Dial(ctx context.Context) (managedws.Socket, error) {
 	if err != nil {
 		if d.invalidDialError != nil && d.invalidDialError(err) {
 			wrapped := privateError(ErrorExpired, "", 0, "handshake", fmt.Errorf("%w: %v", ErrListenKeyExpired, err))
-			for _, source := range d.sources {
-				source.invalidate(wrapped)
+			for i, source := range d.sources {
+				if _, _, changed := source.invalidateIfCurrent(bindings[i].ListenKey, bindings[i].Version, wrapped); !changed {
+					source.ignoreResponse(bindings[i].Version, 0)
+				}
 			}
 		}
 		return nil, err

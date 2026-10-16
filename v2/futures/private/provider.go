@@ -33,6 +33,18 @@ func (p RESTListenKeyProvider) KeepAlive(ctx context.Context, listenKey string) 
 	return p.Client.NewKeepaliveUserStreamService().ListenKey(listenKey).Do(ctx)
 }
 
+// KeepAliveWithResponse carries the exchange's effective key to its owner.
+func (p RESTListenKeyProvider) KeepAliveWithResponse(ctx context.Context, key string) (string, error) {
+	if p.Client == nil {
+		return "", fmt.Errorf("%w: nil futures client", ErrListenKeyKeepAlive)
+	}
+	response, err := p.Client.NewKeepaliveUserStreamService().ListenKey(key).DoWithResponse(ctx)
+	if err != nil {
+		return "", err
+	}
+	return response.ListenKey, nil
+}
+
 func (p RESTListenKeyProvider) Release(ctx context.Context, listenKey string) error {
 	if p.Client == nil {
 		return fmt.Errorf("%w: nil futures client", ErrListenKeyRelease)
@@ -47,3 +59,5 @@ func (RESTListenKeyProvider) IsInvalidListenKey(err error) bool {
 
 var _ ListenKeyProvider = RESTListenKeyProvider{}
 var _ InvalidListenKeyClassifier = RESTListenKeyProvider{}
+
+var _ ListenKeyRenewalProvider = RESTListenKeyProvider{}

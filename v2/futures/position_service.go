@@ -3,6 +3,10 @@ package futures
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
+
+	"github.com/btcnash/go-binance/v2/common"
 	"net/http"
 )
 
@@ -45,6 +49,9 @@ func (s *ChangeLeverageService) Do(ctx context.Context, opts ...RequestOption) (
 	if err != nil {
 		return nil, err
 	}
+	if res == nil || strings.TrimSpace(res.Symbol) == "" || !strings.EqualFold(res.Symbol, s.symbol) || res.Leverage <= 0 {
+		return nil, ErrInvalidAccountConfigurationResponse
+	}
 	return res, nil
 }
 
@@ -85,11 +92,11 @@ func (s *ChangeMarginTypeService) Do(ctx context.Context, opts ...RequestOption)
 		"symbol":     s.symbol,
 		"marginType": s.marginType,
 	})
-	_, _, err = s.c.callAPI(ctx, r, opts...)
+	data, _, err := s.c.callAPI(ctx, r, opts...)
 	if err != nil {
 		return err
 	}
-	return nil
+	return validateAccountConfigurationSuccess(data)
 }
 
 // UpdatePositionMarginService update isolated position margin
@@ -171,11 +178,11 @@ func (s *ChangePositionModeService) Do(ctx context.Context, opts ...RequestOptio
 	r.setFormParams(params{
 		"dualSidePosition": s.dualSide,
 	})
-	_, _, err = s.c.callAPI(ctx, r, opts...)
+	data, _, err := s.c.callAPI(ctx, r, opts...)
 	if err != nil {
 		return err
 	}
-	return nil
+	return validateAccountConfigurationSuccess(data)
 }
 
 // GetPositionModeService get user's position mode
@@ -230,11 +237,11 @@ func (s *ChangeMultiAssetModeService) Do(ctx context.Context, opts ...RequestOpt
 	r.setFormParams(params{
 		"multiAssetsMargin": s.multiAssetsMargin,
 	})
-	_, _, err = s.c.callAPI(ctx, r, opts...)
+	data, _, err := s.c.callAPI(ctx, r, opts...)
 	if err != nil {
 		return err
 	}
-	return nil
+	return validateAccountConfigurationSuccess(data)
 }
 
 // GetMultiAssetModeService get user's multi-asset mode
@@ -265,4 +272,26 @@ func (s *GetMultiAssetModeService) Do(ctx context.Context, opts ...RequestOption
 		return nil, err
 	}
 	return res, nil
+}
+
+// ErrInvalidAccountConfigurationResponse means a submitted configuration change
+// did not return usable success evidence. Callers must reconcile rather than
+// retry the side effect or assume that it failed.
+var ErrInvalidAccountConfigurationResponse = errors.New("futures: invalid account configuration response")
+
+func validateAccountConfigurationSuccess(data []byte) error {
+	var response struct {
+		Code    *int64 `json:"code"`
+		Message string `json:"msg"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil || response.Code == nil {
+		return ErrInvalidAccountConfigurationResponse
+	}
+	if *response.Code == 200 {
+		return nil
+	}
+	if *response.Code < 0 {
+		return &common.APIError{Code: *response.Code, Message: response.Message}
+	}
+	return ErrInvalidAccountConfigurationResponse
 }

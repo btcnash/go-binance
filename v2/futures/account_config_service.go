@@ -3,6 +3,7 @@ package futures
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 // AccountConfigService get futures account configuration
@@ -20,6 +21,25 @@ type AccountConfig struct {
 	UpdateTime        int64 `json:"updateTime"`       // Reserved property
 	MultiAssetsMargin bool  `json:"multiAssetsMargin"`
 	TradeGroupId      int   `json:"tradeGroupId"`
+}
+
+// UnmarshalJSON preserves the distinction between a known single-asset mode
+// and a response that did not provide an asset mode.
+func (c *AccountConfig) UnmarshalJSON(data []byte) error {
+	type accountConfig AccountConfig
+	response := struct {
+		accountConfig
+		MultiAssetsMargin *bool `json:"multiAssetsMargin"`
+	}{accountConfig: accountConfig(*c)}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return err
+	}
+	if response.MultiAssetsMargin == nil {
+		return fmt.Errorf("%w: missing or null multiAssetsMargin", ErrInvalidAccountConfigurationResponse)
+	}
+	response.accountConfig.MultiAssetsMargin = *response.MultiAssetsMargin
+	*c = AccountConfig(response.accountConfig)
+	return nil
 }
 
 // Do send request

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/btcnash/go-binance/v2/common"
@@ -195,6 +196,21 @@ type PositionMode struct {
 	DualSidePosition bool `json:"dualSidePosition"`
 }
 
+// UnmarshalJSON requires an explicit mode; a missing or null field is not false.
+func (m *PositionMode) UnmarshalJSON(data []byte) error {
+	var response struct {
+		DualSidePosition *bool `json:"dualSidePosition"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return err
+	}
+	if response.DualSidePosition == nil {
+		return fmt.Errorf("%w: missing or null dualSidePosition", ErrInvalidAccountConfigurationResponse)
+	}
+	m.DualSidePosition = *response.DualSidePosition
+	return nil
+}
+
 // Do send request
 func (s *GetPositionModeService) Do(ctx context.Context, opts ...RequestOption) (res *PositionMode, err error) {
 	r := &request{
@@ -208,7 +224,7 @@ func (s *GetPositionModeService) Do(ctx context.Context, opts ...RequestOption) 
 		return nil, err
 	}
 	res = &PositionMode{}
-	err = json.Unmarshal(data, &res)
+	err = json.Unmarshal(data, res)
 	if err != nil {
 		return nil, err
 	}
@@ -254,6 +270,21 @@ type MultiAssetMode struct {
 	MultiAssetsMargin bool `json:"multiAssetsMargin"`
 }
 
+// UnmarshalJSON requires an explicit mode; a missing or null field is not false.
+func (m *MultiAssetMode) UnmarshalJSON(data []byte) error {
+	var response struct {
+		MultiAssetsMargin *bool `json:"multiAssetsMargin"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return err
+	}
+	if response.MultiAssetsMargin == nil {
+		return fmt.Errorf("%w: missing or null multiAssetsMargin", ErrInvalidAccountConfigurationResponse)
+	}
+	m.MultiAssetsMargin = *response.MultiAssetsMargin
+	return nil
+}
+
 // Do send request
 func (s *GetMultiAssetModeService) Do(ctx context.Context, opts ...RequestOption) (res *MultiAssetMode, err error) {
 	r := &request{
@@ -267,16 +298,17 @@ func (s *GetMultiAssetModeService) Do(ctx context.Context, opts ...RequestOption
 		return nil, err
 	}
 	res = &MultiAssetMode{}
-	err = json.Unmarshal(data, &res)
+	err = json.Unmarshal(data, res)
 	if err != nil {
 		return nil, err
 	}
 	return res, nil
 }
 
-// ErrInvalidAccountConfigurationResponse means a submitted configuration change
-// did not return usable success evidence. Callers must reconcile rather than
-// retry the side effect or assume that it failed.
+// ErrInvalidAccountConfigurationResponse means a configuration response lacks
+// usable evidence. Query callers must not interpret absent modes as false.
+// For submitted changes, callers must reconcile rather than retry the side
+// effect or assume that it failed.
 var ErrInvalidAccountConfigurationResponse = errors.New("futures: invalid account configuration response")
 
 func validateAccountConfigurationSuccess(data []byte) error {

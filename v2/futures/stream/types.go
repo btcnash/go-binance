@@ -152,6 +152,10 @@ type StreamSessionOptions struct {
 	Class    StreamClass
 	Endpoint string
 
+	// UnixSocket dials a local TCP relay without changing Endpoint or TLS SNI.
+	// It is mutually exclusive with ConnectionOptions.Dialer.
+	UnixSocket string
+
 	InitialSubscriptions []Subscription
 	DeliveryPolicy       DeliveryPolicy
 	// TypedDelivery enables the optional homogeneous managed typed decoder.

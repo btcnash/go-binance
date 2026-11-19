@@ -5,6 +5,7 @@ package gorilla
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -21,7 +22,11 @@ type Dialer struct {
 	Endpoint string
 	Header   http.Header
 
-	// Proxy defaults to http.ProxyFromEnvironment when nil.
+	// NetDialContext overrides the underlying connection while leaving WebSocket
+	// endpoint selection and TLS verification intact.
+	NetDialContext func(context.Context, string, string) (net.Conn, error)
+
+	// Proxy defaults to http.ProxyFromEnvironment when both it and NetDialContext are nil.
 	Proxy func(*http.Request) (*url.URL, error)
 
 	HandshakeTimeout  time.Duration
@@ -39,7 +44,7 @@ func (d Dialer) Dial(ctx context.Context) (managed.Socket, error) {
 	}
 
 	proxy := d.Proxy
-	if proxy == nil {
+	if proxy == nil && d.NetDialContext == nil {
 		proxy = http.ProxyFromEnvironment
 	}
 	handshakeTimeout := d.HandshakeTimeout
@@ -52,6 +57,7 @@ func (d Dialer) Dial(ctx context.Context) (managed.Socket, error) {
 
 	wsDialer := gorillaws.Dialer{
 		Proxy:             proxy,
+		NetDialContext:    d.NetDialContext,
 		HandshakeTimeout:  handshakeTimeout,
 		EnableCompression: d.EnableCompression,
 	}

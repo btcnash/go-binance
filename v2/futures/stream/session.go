@@ -6,6 +6,8 @@ import (
 	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
+	"net"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -93,6 +95,20 @@ type wireEnvelope struct {
 	Msg    string          `json:"msg"`
 	Stream string          `json:"stream"`
 	Data   json.RawMessage `json:"data"`
+}
+
+// DefaultEndpoint returns the combined stream URL for the active network.
+// An unknown stream class has no default endpoint.
+func DefaultEndpoint(class StreamClass) string {
+	profile := networkenv.USDM(networkenv.Current())
+	switch class {
+	case StreamClassPublic:
+		return profile.PublicCombined
+	case StreamClassMarket:
+		return profile.MarketCombined
+	default:
+		return ""
+	}
 }
 
 // NewStreamSession creates an idle dynamic subscription session.
@@ -201,20 +217,21 @@ func normalizeStreamOptions(opts StreamSessionOptions) (StreamSessionOptions, er
 		return StreamSessionOptions{}, fmt.Errorf("%w: %d > %d", ErrTooManySubscriptions, len(seen), opts.MaxStreams)
 	}
 
+	if opts.UnixSocket != "" && (!filepath.IsAbs(opts.UnixSocket) || opts.ConnectionOptions.Dialer != nil) {
+		return StreamSessionOptions{}, fmt.Errorf("%w: UnixSocket must be absolute and cannot be combined with a custom dialer", ErrInvalidStreamOptions)
+	}
 	if opts.ConnectionOptions.Dialer == nil {
 		endpoint := strings.TrimSpace(opts.Endpoint)
 		if endpoint == "" {
-			profile := networkenv.USDM(networkenv.Current())
-			if opts.Class == StreamClassPublic {
-				endpoint = profile.PublicCombined
-			} else {
-				endpoint = profile.MarketCombined
+			endpoint = DefaultEndpoint(opts.Class)
+		}
+		dialer := managedgorilla.Dialer{Endpoint: endpoint, ReadLimit: 655350}
+		if path := opts.UnixSocket; path != "" {
+			dialer.NetDialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, "unix", path)
 			}
 		}
-		opts.ConnectionOptions.Dialer = managedgorilla.Dialer{
-			Endpoint:  endpoint,
-			ReadLimit: 655350,
-		}
+		opts.ConnectionOptions.Dialer = dialer
 	}
 	if !opts.DisableHeartbeat && !opts.ConnectionOptions.Heartbeat.Enabled {
 		opts.ConnectionOptions.Heartbeat.Enabled = true

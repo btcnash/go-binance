@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -791,5 +794,55 @@ func assertGapChannelClosed(t *testing.T, name string, ch <-chan GapEvent) {
 		case <-deadline:
 			t.Fatalf("%s channel did not close", name)
 		}
+	}
+}
+
+func TestPublicStreamUnixSocketUsesOriginalEndpoint(t *testing.T) {
+	dir, err := os.MkdirTemp("", "ws-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	socket := filepath.Join(dir, "s")
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	request := make(chan string, 1)
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		request <- r.Host + r.URL.Path
+		w.WriteHeader(http.StatusForbidden)
+	})}
+	defer server.Close()
+	go func() { _ = server.Serve(listener) }()
+	opts, err := normalizeStreamOptions(StreamSessionOptions{
+		Class: StreamClassPublic, Endpoint: "ws://stream.invalid/public/stream", UnixSocket: socket,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err = opts.ConnectionOptions.Dialer.Dial(ctx)
+	var handshake *managedgorilla.HandshakeError
+	if !errors.As(err, &handshake) || handshake.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected the local relay handshake response, got %v", err)
+	}
+	if got := <-request; got != "stream.invalid/public/stream" {
+		t.Fatalf("original host/path changed: %s", got)
+	}
+}
+
+func TestPublicStreamUnixSocketRejectsAmbiguousDialer(t *testing.T) {
+	opts := StreamSessionOptions{Class: StreamClassMarket, UnixSocket: "/run/market.sock"}
+	opts.ConnectionOptions.Dialer = managedgorilla.Dialer{}
+	if _, err := NewStreamSession(opts); !errors.Is(err, ErrInvalidStreamOptions) {
+		t.Fatalf("expected conflicting transport to be rejected, got %v", err)
+	}
+	opts.ConnectionOptions.Dialer = nil
+	opts.UnixSocket = "relative.sock"
+	if _, err := NewStreamSession(opts); !errors.Is(err, ErrInvalidStreamOptions) {
+		t.Fatalf("expected relative socket to be rejected, got %v", err)
 	}
 }
